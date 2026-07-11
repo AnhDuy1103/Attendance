@@ -1,0 +1,283 @@
+{
+  "info": {
+    "name": "GPS Attendance API",
+    "_postman_id": "gps-attendance-collection",
+    "description": "Collection test đầy đủ cho GPS Attendance API\n\nThứ tự test:\n1. Login → copy token\n2. Test Attendance endpoints\n3. Test Employee endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://localhost:5001", "type": "string" },
+    { "key": "token", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "item": [
+        {
+          "name": "Login (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('token', body.data.token);",
+                  "  console.log('✅ Token saved:', body.data.token.substring(0, 30) + '...');",
+                  "  pm.test('Login thành công', () => pm.expect(body.success).to.be.true);",
+                  "  pm.test('Token tồn tại', () => pm.expect(body.data.token).to.not.be.empty);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Admin@123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/logout",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "📍 Locations",
+      "item": [
+        {
+          "name": "Lấy danh sách địa điểm",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/locations",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Thêm địa điểm mới",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/locations",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": 0,\n  \"locationName\": \"Chi nhánh Hà Nội\",\n  \"latitude\": 21.0278,\n  \"longitude\": 105.8342,\n  \"radius\": 150,\n  \"description\": \"Văn phòng chi nhánh Hà Nội\",\n  \"isActive\": true\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "⏰ Working Hours",
+      "item": [
+        {
+          "name": "Lấy danh sách ca làm",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/workinghours",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Thêm ca làm mới",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/workinghours",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workingHourId\": 0,\n  \"shiftName\": \"Ca Chiều\",\n  \"startTime\": \"13:00:00\",\n  \"endTime\": \"22:00:00\",\n  \"shiftDuration\": 8,\n  \"overtimeThresholdMinutes\": 30,\n  \"isActive\": true\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 Employees",
+      "item": [
+        {
+          "name": "Lấy danh sách nhân viên",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/employees?page=1&pageSize=10",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "10" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Tạo nhân viên mới",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('employeeId', body.data.employeeId);",
+                  "  console.log('✅ EmployeeId saved:', body.data.employeeId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/employees",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"nhanvien01\",\n  \"password\": \"NhanVien@123\",\n  \"email\": \"nhanvien01@company.com\",\n  \"fullName\": \"Nguyễn Văn A\",\n  \"department\": \"Kỹ thuật\",\n  \"position\": \"Developer\",\n  \"phone\": \"0901234567\",\n  \"joinDate\": \"2024-01-15T00:00:00\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Xem chi tiết nhân viên",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/employees/1",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "📋 Attendance (Chấm công)",
+      "item": [
+        {
+          "name": "Login Nhân viên (lấy token riêng)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('employeeToken', body.data.token);",
+                  "  pm.collectionVariables.set('attendanceEmployeeId', body.data.userInfo.employeeId);",
+                  "  console.log('✅ Employee token saved, employeeId:', body.data.userInfo.employeeId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"nhanvien01\",\n  \"password\": \"NhanVien@123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "✅ Check-In GPS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('attendanceId', body.data.attendanceId);",
+                  "  console.log('✅ AttendanceId saved:', body.data.attendanceId);",
+                  "  pm.test('Check-in thành công', () => pm.expect(body.success).to.be.true);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/attendance/checkin",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employeeToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workingHourId\": 1,\n  \"locationId\": 1,\n  \"latitude\": 21.0278,\n  \"longitude\": 105.8342,\n  \"note\": \"Check-in từ thiết bị di động\"\n}"
+            }
+          }
+        },
+        {
+          "name": "❌ Check-In sai vị trí (Test GPS reject)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/attendance/checkin",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employeeToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workingHourId\": 1,\n  \"locationId\": 1,\n  \"latitude\": 10.7769,\n  \"longitude\": 106.7009,\n  \"note\": \"Test từ HCM – phải bị từ chối\"\n}"
+            }
+          }
+        },
+        {
+          "name": "✅ Check-Out GPS",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/attendance/checkout",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{employeeToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attendanceId\": {{attendanceId}},\n  \"latitude\": 21.0278,\n  \"longitude\": 105.8342,\n  \"note\": \"Check-out cuối ca\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Lịch sử chấm công",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/attendance/history?fromDate=2024-01-01&toDate=2024-12-31",
+              "query": [
+                { "key": "fromDate", "value": "2024-01-01" },
+                { "key": "toDate", "value": "2024-12-31" }
+              ]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{employeeToken}}" }]
+          }
+        },
+        {
+          "name": "Chấm công hôm nay (Admin)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/attendance/today",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    }
+  ]
+}

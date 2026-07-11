@@ -1,0 +1,25 @@
+﻿# Dependencies
+**/node_modules/
+**/dist/
+**/.env
+**/*.local
+
+# .NET
+**/bin/
+**/obj/
+**/*.user
+**/*.suo
+**/.vs/
+**/appsettings.Development.json
+
+# Packages & Logs
+**/packages/
+**/*.nupkg
+**/logs/
+**/*.log
+**/.vscode/
+**/*.sln.docstates
+
+# OS
+.DS_Store
+Thumbs.db

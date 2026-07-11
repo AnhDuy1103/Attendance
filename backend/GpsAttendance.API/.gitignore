@@ -1,0 +1,26 @@
+## .NET Core / ASP.NET Core
+bin/
+obj/
+*.user
+*.suo
+.vs/
+appsettings.Development.json
+
+## Migrations (giữ lại nếu muốn commit migration)
+# Migrations/
+
+## Packages
+packages/
+*.nupkg
+
+## Logs
+logs/
+*.log
+
+## Visual Studio
+.vscode/
+*.sln.docstates
+
+## OS
+.DS_Store
+Thumbs.db
