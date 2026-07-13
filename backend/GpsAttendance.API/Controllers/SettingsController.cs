@@ -1,38 +1,23 @@
-using System;
-using System.Threading.Tasks;
 using GpsAttendance.API.DTOs.Common;
 using GpsAttendance.API.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
-using Microsoft.AspNetCore.Hosting;
 
 namespace GpsAttendance.API.Controllers;
 
-/// <summary>
-/// SettingsController – cung cấp các tiện ích cấu hình hệ thống.
-/// </summary>
 [ApiController]
 [Route("api/settings")]
 [Produces("application/json")]
 public class SettingsController : ControllerBase
 {
-    private readonly IGooglePlacesService _googlePlacesService;
-    private readonly IConfiguration _configuration;
-    private readonly IWebHostEnvironment _env;
+    private readonly IPlaceSearchService _placeSearchService;
 
-    public SettingsController(
-        IGooglePlacesService googlePlacesService,
-        IConfiguration configuration,
-        IWebHostEnvironment env)
+    public SettingsController(IPlaceSearchService placeSearchService)
     {
-        _googlePlacesService = googlePlacesService;
-        _configuration = configuration;
-        _env = env;
+        _placeSearchService = placeSearchService;
     }
 
-    /// <summary>[Admin] Gợi ý địa chỉ từ Google Places API Autocomplete</summary>
+    /// <summary>[Admin] Gợi ý địa chỉ từ OpenStreetMap/Nominatim</summary>
     [HttpGet("place-autocomplete")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponseDto<object>), StatusCodes.Status200OK)]
@@ -46,7 +31,7 @@ public class SettingsController : ControllerBase
 
         try
         {
-            var suggestions = await _googlePlacesService.AutocompleteAsync(input);
+            var suggestions = await _placeSearchService.AutocompleteAsync(input);
             return Ok(ApiResponseDto<object>.Ok(suggestions, "Lấy danh sách gợi ý thành công"));
         }
         catch (Exception ex)
@@ -55,7 +40,7 @@ public class SettingsController : ControllerBase
         }
     }
 
-    /// <summary>[Admin] Lấy tọa độ và địa chỉ chi tiết từ Google Places API Details</summary>
+    /// <summary>[Admin] Lấy tọa độ và địa chỉ chi tiết từ OpenStreetMap/Nominatim</summary>
     [HttpGet("place-details")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponseDto<object>), StatusCodes.Status200OK)]
@@ -69,67 +54,12 @@ public class SettingsController : ControllerBase
 
         try
         {
-            var details = await _googlePlacesService.GetPlaceDetailsAsync(placeId);
+            var details = await _placeSearchService.GetPlaceDetailsAsync(placeId);
             return Ok(ApiResponseDto<object>.Ok(details, "Lấy thông tin địa điểm thành công"));
         }
         catch (Exception ex)
         {
             return BadRequest(ApiResponseDto<object>.Fail(ex.Message));
-        }
-    }
-
-    /// <summary>[Public Debug] API debug tạm thời kiểm tra Google Places API</summary>
-    [HttpGet("google-places-debug")]
-    [AllowAnonymous]
-    public async Task<IActionResult> DebugGooglePlaces([FromQuery] string input)
-    {
-        var apiKey = _configuration["GoogleMaps:PlacesApiKey"] ?? "";
-        
-        Func<string, string> mask = (key) =>
-        {
-            if (string.IsNullOrWhiteSpace(key)) return "(empty)";
-            if (key.Length <= 10) return "****";
-            return $"{key[..6]}****{key[^4..]}";
-        };
-
-        var responseData = new System.Collections.Generic.Dictionary<string, object>
-        {
-            { "environment", _env.EnvironmentName },
-            { "hasApiKey", !string.IsNullOrWhiteSpace(apiKey) },
-            { "maskedApiKey", mask(apiKey) }
-        };
-
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            responseData.Add("success", false);
-            responseData.Add("message", "Google Places API key chưa được cấu hình tại GoogleMaps:PlacesApiKey");
-            responseData.Add("hint", "Kiểm tra appsettings.Development.json và môi trường chạy backend.");
-            return BadRequest(responseData);
-        }
-
-        try
-        {
-            var suggestions = await _googlePlacesService.AutocompleteAsync(
-                string.IsNullOrWhiteSpace(input) ? "960 tran hung dao" : input
-            );
-            responseData.Add("googleStatusCode", 200);
-            responseData.Add("success", true);
-            responseData.Add("suggestionCount", suggestions.Count);
-            return Ok(responseData);
-        }
-        catch (Exception ex)
-        {
-            int googleStatusCode = 403;
-            if (ex.Message.Contains("400") || ex.Message.Contains("không hợp lệ") || ex.Message.Contains("BadRequest"))
-            {
-                googleStatusCode = 400;
-            }
-
-            responseData.Add("googleStatusCode", googleStatusCode);
-            responseData.Add("success", false);
-            responseData.Add("message", ex.Message);
-            responseData.Add("hint", "Kiểm tra Billing, Places API, API restrictions hoặc key cũ");
-            return BadRequest(responseData);
         }
     }
 }

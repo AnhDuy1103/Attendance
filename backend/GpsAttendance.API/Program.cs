@@ -105,7 +105,7 @@ builder.Services.AddScoped<WorkingHoursService>();
 builder.Services.AddSingleton<HaversineService>(); // Stateless, dùng Singleton
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IGeoLocationService, GeoLocationService>();
-builder.Services.AddScoped<IGooglePlacesService, GooglePlacesService>();
+builder.Services.AddScoped<IPlaceSearchService, NominatimPlacesService>();
 
 // ════════════════════════════════════════════════════════════════════════════
 // 6. AUTOMAPPER – Đổi sang namespace Mappings

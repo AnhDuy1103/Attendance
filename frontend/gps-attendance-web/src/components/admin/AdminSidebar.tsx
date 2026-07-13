@@ -1,16 +1,14 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard,
-  Users,
-  ClipboardList,
   BarChart2,
+  ClipboardList,
+  LayoutDashboard,
+  LogOut,
   Settings,
   UserCircle,
-  LogOut,
+  Users,
 } from 'lucide-react'
 import { ROUTES, STORAGE_KEYS } from '../../utils/constants'
-
-// ─── Admin Sidebar ────────────────────────────────────────────
 
 interface NavItem {
   label: string
@@ -19,9 +17,9 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', path: ROUTES.ADMIN.DASHBOARD, icon: <LayoutDashboard size={20} /> },
-  { label: 'Quản lý Nhân viên', path: ROUTES.ADMIN.EMPLOYEES, icon: <Users size={20} /> },
-  { label: 'Lịch sử Chấm công', path: ROUTES.ADMIN.ATTENDANCE_HISTORY, icon: <ClipboardList size={20} /> },
+  { label: 'Tổng quan', path: ROUTES.ADMIN.DASHBOARD, icon: <LayoutDashboard size={20} /> },
+  { label: 'Nhân viên', path: ROUTES.ADMIN.EMPLOYEES, icon: <Users size={20} /> },
+  { label: 'Lịch sử chấm công', path: ROUTES.ADMIN.ATTENDANCE_HISTORY, icon: <ClipboardList size={20} /> },
   { label: 'Báo cáo', path: ROUTES.ADMIN.REPORTS, icon: <BarChart2 size={20} /> },
   { label: 'Cài đặt', path: ROUTES.ADMIN.SETTINGS, icon: <Settings size={20} /> },
   { label: 'Tài khoản', path: ROUTES.ADMIN.ACCOUNT, icon: <UserCircle size={20} /> },
@@ -39,16 +37,14 @@ export default function AdminSidebar() {
 
   return (
     <aside className="sidebar">
-      {/* Logo */}
       <div className="sidebar-logo justify-center">
         <img
           src="/quanghoaaa.png"
-          alt="Quang Hoa Logo"
+          alt="Quang Hoa"
           style={{ width: 140, height: 'auto', objectFit: 'contain' }}
         />
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 space-y-0.5">
         {navItems.map((item) => (
           <NavLink
@@ -64,9 +60,9 @@ export default function AdminSidebar() {
         ))}
       </nav>
 
-      {/* Logout */}
       <div className="p-3 border-t border-gray-100">
         <button
+          type="button"
           onClick={handleLogout}
           className="sidebar-nav-item w-full text-red-500 hover:bg-red-50 hover:text-red-600"
         >
