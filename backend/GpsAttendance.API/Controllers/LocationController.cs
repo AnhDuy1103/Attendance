@@ -66,21 +66,6 @@ public class LocationController : ControllerBase
             ApiResponseDto<LocationDto>.Ok(dto, "Thêm địa điểm thành công"));
     }
 
-    /// <summary>[Admin] Cập nhật thông tin địa điểm</summary>
-    [HttpPut("{id:int}")]
-    [Authorize(Roles = "Admin")]
-    [ProducesResponseType(typeof(ApiResponseDto<LocationDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Update(int id, [FromBody] UpdateLocationDto request)
-    {
-        var (success, message, dto) = await _locationService.UpdateAsync(id, request);
-
-        if (!success)
-            return NotFound(ApiResponseDto<object>.Fail(message));
-
-        return Ok(ApiResponseDto<LocationDto>.Ok(dto!, message));
-    }
-
     /// <summary>[Admin] Vô hiệu hoá địa điểm (soft delete)</summary>
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "Admin")]
