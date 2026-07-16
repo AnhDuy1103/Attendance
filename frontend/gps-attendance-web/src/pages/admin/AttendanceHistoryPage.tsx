@@ -18,7 +18,8 @@ import {
   ChevronDown,
   Calendar,
 } from "lucide-react";
-import { attendanceApi, AdminAttendanceResponse } from "../../api/attendanceApi";
+import { attendanceApi, AdminAttendanceResponse, approveForgotCheckout } from "../../api/attendanceApi";
+import { ClipboardCheck } from "lucide-react";
 
 // --- Helpers for Date/Month values ---
 const padNumber = (value: number) => {
@@ -102,9 +103,57 @@ export default function AttendanceHistoryPage() {
 
   const [toastMessage, setToastMessage] = useState("");
 
+  // ── Approve Forgot Checkout State ──
+  const [isApprovingForgotCheckout, setIsApprovingForgotCheckout] = useState(false);
+  const [approveError, setApproveError] = useState("");
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
+
   const triggerToast = (message: string) => {
     setToastMessage(message);
     setTimeout(() => setToastMessage(""), 3000);
+  };
+
+  // ── Approve Forgot Checkout Handler ──
+  const handleApproveForgotCheckout = async () => {
+    if (!selectedAttendance) return;
+    if (!isForgotCheckoutRecord(selectedAttendance)) {
+      setApproveError("Bản ghi này không còn thuộc trạng thái quên check-out");
+      return;
+    }
+
+    try {
+      setIsApprovingForgotCheckout(true);
+      setApproveError("");
+      setShowApproveConfirm(false);
+
+      const updated = await approveForgotCheckout(selectedAttendance.attendanceId);
+
+      // Cập nhật selectedAttendance với dữ liệu mới từ server
+      setSelectedAttendance((prev) =>
+        prev
+          ? {
+              ...prev,
+              checkOutTime: updated.checkOutTime,
+              actualHours: updated.actualHours,
+              overtimeHours: updated.overtimeHours,
+              status: updated.status,
+              note: updated.note,
+            }
+          : prev
+      );
+
+      // Refresh danh sách để cập nhật card Quên check-out
+      await fetchAttendances();
+
+      triggerToast("Đã duyệt giờ ra theo giờ kết thúc ca");
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        "Không thể duyệt bản ghi quên check-out";
+      setApproveError(message);
+    } finally {
+      setIsApprovingForgotCheckout(false);
+    }
   };
 
   // --- Load Data ---
@@ -566,6 +615,13 @@ export default function AttendanceHistoryPage() {
     }
   };
 
+  // --- Close Detail Modal helper ---
+  const closeDetailModal = () => {
+    setSelectedAttendance(null);
+    setApproveError("");
+    setShowApproveConfirm(false);
+  };
+
   // --- Portal Render Portal Modal ---
   const renderAttendanceDetailModal = () => {
     if (!selectedAttendance) return null;
@@ -573,7 +629,7 @@ export default function AttendanceHistoryPage() {
     return createPortal(
       <div
         className="fixed inset-0 z-[2147483647] w-screen h-screen bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
-        onClick={() => setSelectedAttendance(null)}
+        onClick={() => { if (!isApprovingForgotCheckout) closeDetailModal(); }}
       >
         <div
           className="w-full max-w-3xl max-h-[90dvh] bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-fade-in-up"
@@ -592,8 +648,9 @@ export default function AttendanceHistoryPage() {
 
             <button
               type="button"
-              onClick={() => setSelectedAttendance(null)}
-              className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+              onClick={closeDetailModal}
+              disabled={isApprovingForgotCheckout}
+              className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <X size={22} />
             </button>
@@ -703,14 +760,77 @@ export default function AttendanceHistoryPage() {
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end px-8 py-5 border-t border-gray-200 bg-white shrink-0">
-            <button
-              type="button"
-              onClick={() => setSelectedAttendance(null)}
-              className="px-8 py-3 rounded-xl bg-[#00288e] text-white font-semibold shadow-lg shadow-[#00288e]/20 hover:bg-[#002070] transition-all cursor-pointer"
-            >
-              Đóng
-            </button>
+          <div className="flex flex-col gap-3 px-8 py-5 border-t border-gray-200 bg-white shrink-0">
+            {/* Error message */}
+            {approveError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+                {approveError}
+              </div>
+            )}
+
+            {/* Confirm prompt */}
+            {showApproveConfirm && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm font-semibold text-amber-800">
+                  Bạn có chắc muốn duyệt bản ghi này? Giờ ra sẽ được ghi nhận theo giờ kết thúc ca tiêu chuẩn.
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowApproveConfirm(false)}
+                    className="px-4 py-2 rounded-lg text-xs font-bold border border-gray-300 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApproveForgotCheckout}
+                    className="px-4 py-2 rounded-lg text-xs font-bold bg-[#00288e] text-white hover:bg-[#002070] transition-colors cursor-pointer"
+                  >
+                    Xác nhận duyệt
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeDetailModal}
+                disabled={isApprovingForgotCheckout}
+                className="px-8 py-3 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Đóng
+              </button>
+
+              {isForgotCheckoutRecord(selectedAttendance) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setApproveError("");
+                    setShowApproveConfirm(true);
+                  }}
+                  disabled={isApprovingForgotCheckout || showApproveConfirm}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#00288e] text-white font-bold shadow-lg hover:bg-[#001f70] disabled:opacity-60 disabled:cursor-not-allowed transition-all cursor-pointer"
+                >
+                  {isApprovingForgotCheckout ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                      Đang duyệt...
+                    </>
+                  ) : (
+                    <>
+                      <ClipboardCheck size={18} />
+                      Duyệt giờ ra
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>,

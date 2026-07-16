@@ -30,4 +30,9 @@ public interface IAttendanceService
 
     /// <summary>Báo cáo tổng hợp chấm công tháng của một nhân viên (dành cho Admin)</summary>
     Task<AttendanceReportDto?> GetMonthlyReportAsync(int employeeId, int year, int month);
+
+    /// <summary>
+    /// [Admin] Duyệt bản ghi "Quên check-out" bằng cách ghi nhận CheckOutTime theo EndTime của ca làm.
+    /// </summary>
+    Task<AttendanceResponseDto> ApproveForgotCheckoutAsync(int attendanceId, int adminUserId);
 }

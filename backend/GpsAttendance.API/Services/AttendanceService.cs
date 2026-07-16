@@ -321,4 +321,91 @@ public class AttendanceService : IAttendanceService
         var diff = localCheckIn - workingHours.StartTime;
         return diff > TimeSpan.Zero ? (int)diff.TotalMinutes : 0;
     }
+
+    // ── APPROVE FORGOT CHECKOUT ──────────────────────────────────────────────
+
+    /// <summary>
+    /// [Admin] Duyệt bản ghi "Quên check-out":
+    /// ghi nhận CheckOutTime theo EndTime của ca làm,
+    /// tính lại ActualHours / OvertimeHours / Status, cập nhật Note.
+    /// </summary>
+    public async Task<AttendanceResponseDto> ApproveForgotCheckoutAsync(
+        int attendanceId,
+        int adminUserId)
+    {
+        // 1. Lấy giờ Việt Nam hiện tại
+        var today = DateTimeHelper.GetVietnamNow().Date;
+
+        // 2. Tìm attendance kèm WorkingHours, Employee, Location
+        var attendance = await _attendanceRepository.GetByIdWithDetailsAsync(attendanceId);
+
+        // 3. Validate
+        if (attendance == null)
+            throw new KeyNotFoundException("Không tìm thấy bản ghi chấm công");
+
+        if (attendance.CheckOutTime != null)
+            throw new InvalidOperationException("Bản ghi này đã có giờ ra");
+
+        if (attendance.AttendanceDate.Date >= today)
+            throw new InvalidOperationException(
+                "Chỉ được duyệt bản ghi quên check-out của những ngày đã qua");
+
+        if (attendance.WorkingHours == null)
+            throw new InvalidOperationException(
+                "Không tìm thấy ca làm việc của bản ghi chấm công");
+
+        // 4. Tạo CheckOutTime = ngày chấm công + EndTime của ca
+        var standardCheckOutTime =
+            attendance.AttendanceDate.Date.Add(attendance.WorkingHours.EndTime);
+
+        // 5. Validate giờ ra không được nhỏ hơn hoặc bằng giờ vào
+        if (standardCheckOutTime <= attendance.CheckInTime)
+            throw new InvalidOperationException(
+                "Giờ kết thúc ca không hợp lệ so với giờ vào");
+
+        // 6. Cập nhật CheckOutTime (không gán tọa độ vì đây là Admin duyệt)
+        attendance.CheckOutTime = standardCheckOutTime;
+        // CheckOutLat / CheckOutLong giữ null – nullable trong entity
+
+        // 7. Tính ActualHours
+        var actualHours = (standardCheckOutTime - attendance.CheckInTime).TotalHours;
+        attendance.ActualHours = Math.Round(actualHours, 2);
+
+        // 8. Tính OvertimeHours
+        // Overtime tính sau khi kết thúc ca + ngưỡng Overtime phút
+        var overtimeStartTime =
+            attendance.AttendanceDate.Date
+                .Add(attendance.WorkingHours.EndTime)
+                .AddMinutes(attendance.WorkingHours.Overtime);
+
+        attendance.OvertimeHours = standardCheckOutTime > overtimeStartTime
+            ? Math.Round((standardCheckOutTime - overtimeStartTime).TotalHours, 2)
+            : 0;
+
+        // 9. Giữ đúng Status (Late / OnTime) – KHÔNG đặt CheckedOut
+        //    Nếu status cũ là Late hoặc OnTime thì giữ nguyên.
+        //    Nếu vì lý do nào đó status đã bị set khác, khôi phục từ CheckInTime.
+        if (attendance.Status != AttendanceStatus.Late &&
+            attendance.Status != AttendanceStatus.OnTime)
+        {
+            var standardStartTime =
+                attendance.AttendanceDate.Date.Add(attendance.WorkingHours.StartTime);
+
+            attendance.Status = attendance.CheckInTime > standardStartTime
+                ? AttendanceStatus.Late
+                : AttendanceStatus.OnTime;
+        }
+
+        // 10. Ghi chú
+        const string approveNote = "Đã được quản trị viên duyệt giờ ra tiêu chuẩn";
+        attendance.Note = string.IsNullOrWhiteSpace(attendance.Note)
+            ? approveNote
+            : $"{attendance.Note} | {approveNote}";
+
+        // 11. Lưu
+        _attendanceRepository.Update(attendance);
+        await _attendanceRepository.SaveChangesAsync();
+
+        return _mapper.Map<AttendanceResponseDto>(attendance);
+    }
 }

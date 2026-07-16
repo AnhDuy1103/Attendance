@@ -92,3 +92,28 @@ export type AdminAttendanceResponse = {
   locationAddress?: string;
   note?: string | null;
 };
+
+export type ApproveForgotCheckoutResponse = {
+  attendanceId: number;
+  employeeId: number;
+  attendanceDate: string;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  actualHours: number | null;
+  overtimeHours: number | null;
+  status: string;
+  note: string | null;
+};
+
+// Thêm hàm approveForgotCheckout vào object attendanceApi
+// (gắn thêm vào object đã export ở trên qua namespace mở rộng không được,
+//  nên dùng export function riêng)
+export const approveForgotCheckout = async (
+  attendanceId: number
+): Promise<ApproveForgotCheckoutResponse> => {
+  const response = await axiosClient.put<ApproveForgotCheckoutResponse>(
+    `/attendance/${attendanceId}/approve-forgot-checkout`
+  );
+  return response.data;
+};
+

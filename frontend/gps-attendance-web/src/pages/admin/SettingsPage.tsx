@@ -346,12 +346,8 @@ export default function SettingsPage() {
   const shiftDuration = calculateShiftDuration(startTime, endTime);
 
   return (
-    <div className="min-h-[calc(100vh-96px)] px-1 py-1">
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Cấu hình hệ thống</p>
-          <h2 className="mt-1 text-2xl font-bold text-gray-900">Cài đặt chấm công</h2>
-        </div>
+    <div className="min-h-[calc(100vh-96px)] px-1 py-1 space-y-5">
+      <div className="flex items-center justify-end">
         <button
           type="button"
           onClick={handleSaveSettings}
@@ -364,7 +360,7 @@ export default function SettingsPage() {
       </div>
 
       {errorMessage && (
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
           <p>{errorMessage}</p>
         </div>

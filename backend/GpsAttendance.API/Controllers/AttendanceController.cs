@@ -229,4 +229,44 @@ public class AttendanceController : ControllerBase
 
         return null;
     }
+
+    /// <summary>Lấy UserId của Admin đang đăng nhập từ JWT Claims.</summary>
+    private int GetCurrentUserId()
+    {
+        var raw = User.FindFirst("userId")?.Value
+                  ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(raw, out var uid) ? uid : 0;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ADMIN – APPROVE FORGOT CHECKOUT
+    // ═══════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// [Admin] Duyệt bản ghi "Quên check-out":
+    /// ghi nhận CheckOutTime bằng EndTime của ca làm việc gắn với bản ghi,
+    /// tính lại ActualHours / OvertimeHours, giữ nguyên Status Late/OnTime.
+    /// </summary>
+    [HttpPut("{attendanceId:int}/approve-forgot-checkout")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(AttendanceResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ApproveForgotCheckout(int attendanceId)
+    {
+        try
+        {
+            var adminUserId = GetCurrentUserId();
+            var result = await _attendanceService.ApproveForgotCheckoutAsync(attendanceId, adminUserId);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 }
