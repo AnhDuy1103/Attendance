@@ -21,6 +21,10 @@ type AttendanceHistoryItem = {
   actualHours: number | null;
   overtimeHours: number | null;
   status: string;
+  /** Backend tính: true khi có checkIn, không có checkOut, ngày đã qua (giờ VN) */
+  isForgotCheckout: boolean;
+  /** "ForgotCheckout" hoặc bằng status gốc */
+  displayStatus?: string;
   locationName?: string;
   address?: string;
   note?: string | null;
@@ -121,64 +125,8 @@ export default function EmployeeHistoryPage() {
     return { weekday, day, fullDate };
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "OnTime":
-        return "Đúng giờ";
-      case "Late":
-        return "Đi trễ";
-      case "CheckedOut":
-        return "Đã chấm công";
-      case "InvalidLocation":
-        return "Sai vị trí";
-      case "ForgotCheckout":
-        return "Quên check-out";
-      case "Absent":
-        return "Vắng mặt";
-      default:
-        return status || "Không xác định";
-    }
-  };
 
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case "OnTime":
-      case "CheckedOut":
-        return {
-          dot: 'bg-[#16a34a]',
-          text: 'text-[#16a34a]',
-          badge: 'bg-[#dcfce7] text-[#16a34a] border-[#bbf7d0]',
-          borderLeft: 'border-l-transparent',
-          checkInText: 'text-[#0b1c30]',
-        };
-      case "Late":
-      case "ForgotCheckout":
-        return {
-          dot: 'bg-[#d97706]',
-          text: 'text-[#d97706]',
-          badge: 'bg-[#ffedd5] text-[#d97706] border-[#fed7aa]',
-          borderLeft: 'border-l-[3px] border-l-[#d97706]',
-          checkInText: 'text-[#d97706]',
-        };
-      case "InvalidLocation":
-      case "Absent":
-        return {
-          dot: 'bg-[#ba1a1a]',
-          text: 'text-[#ba1a1a]',
-          badge: 'bg-[#fee2e2] text-[#ba1a1a] border-[#fecaca]',
-          borderLeft: 'border-l-[3px] border-l-[#ba1a1a]',
-          checkInText: 'text-[#ba1a1a]',
-        };
-      default:
-        return {
-          dot: 'bg-[#444653]',
-          text: 'text-[#444653]',
-          badge: 'bg-gray-100 text-gray-700 border-gray-200',
-          borderLeft: 'border-l-transparent',
-          checkInText: 'text-[#0b1c30]',
-        };
-    }
-  };
+
 
   const formatNumber = (num: number) => {
     return num < 10 ? `0${num}` : `${num}`;
@@ -271,10 +219,81 @@ export default function EmployeeHistoryPage() {
     setFilteredHistories(filtered);
   }, [histories, selectedMonth]);
 
+  // ─── Fallback: tính isForgotCheckout ở frontend khi backend chưa trả về ───
+  const isForgotCheckoutRecord = (item: AttendanceHistoryItem): boolean => {
+    // Ưu tiên dùng giá trị từ backend
+    if (typeof item.isForgotCheckout === 'boolean') return item.isForgotCheckout;
+    // Fallback: tính tại client (tránh lệch UTC)
+    if (!item.checkInTime || item.checkOutTime) return false;
+    const [year, month, day] = item.attendanceDate
+      .slice(0, 10)
+      .split('-')
+      .map(Number);
+    const attendanceDate = new Date(year, month - 1, day);
+    attendanceDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return attendanceDate < today;
+  };
+
+  // ─── Helper: xác định nhãn + màu hiển thị ưu tiên isForgotCheckout ───
+  const getHistoryDisplayStatus = (item: AttendanceHistoryItem) => {
+    if (isForgotCheckoutRecord(item)) {
+      return {
+        label: 'Quên check-out',
+        dot: 'bg-purple-500',
+        text: 'text-purple-700',
+        badge: 'bg-purple-50 text-purple-700 border-purple-200',
+        borderLeft: 'border-l-[3px] border-l-purple-500',
+        checkInText: 'text-purple-700',
+      };
+    }
+    switch (item.status?.toLowerCase()) {
+      case 'late':
+        return {
+          label: 'Đi trễ',
+          dot: 'bg-[#d97706]',
+          text: 'text-[#d97706]',
+          badge: 'bg-[#ffedd5] text-[#d97706] border-[#fed7aa]',
+          borderLeft: 'border-l-[3px] border-l-[#d97706]',
+          checkInText: 'text-[#d97706]',
+        };
+      case 'ontime':
+      case 'present':
+      case 'checkedout':
+        return {
+          label: 'Đúng giờ',
+          dot: 'bg-[#16a34a]',
+          text: 'text-[#16a34a]',
+          badge: 'bg-[#dcfce7] text-[#16a34a] border-[#bbf7d0]',
+          borderLeft: 'border-l-transparent',
+          checkInText: 'text-[#0b1c30]',
+        };
+      case 'absent':
+        return {
+          label: 'Vắng',
+          dot: 'bg-[#ba1a1a]',
+          text: 'text-[#ba1a1a]',
+          badge: 'bg-[#fee2e2] text-[#ba1a1a] border-[#fecaca]',
+          borderLeft: 'border-l-[3px] border-l-[#ba1a1a]',
+          checkInText: 'text-[#ba1a1a]',
+        };
+      default:
+        return {
+          label: item.status || 'Không xác định',
+          dot: 'bg-[#444653]',
+          text: 'text-[#444653]',
+          badge: 'bg-gray-100 text-gray-700 border-gray-200',
+          borderLeft: 'border-l-transparent',
+          checkInText: 'text-[#0b1c30]',
+        };
+    }
+  };
+
   // ─── Stats ───
-  const workedDays = filteredHistories.length;
-  const lateDays = filteredHistories.filter(x => x.status === "Late").length;
-  const absentDays = filteredHistories.filter(x => x.status === "Absent").length;
+  const workedDays = filteredHistories.filter(x => x.checkInTime != null).length;
+  const lateDays = filteredHistories.filter(x => x.status?.toLowerCase() === 'late').length;
+  const forgotCheckoutCount = filteredHistories.filter(x => isForgotCheckoutRecord(x)).length;
 
   const formatSelectedMonth = (monthValue: string) => {
     if (!monthValue) return "Chưa có dữ liệu";
@@ -508,9 +527,9 @@ export default function EmployeeHistoryPage() {
               <div className="text-right">
                 <p className="text-[10px] font-semibold mb-1" style={{ color: '#444653' }}>Trạng thái</p>
                 <div
-                  className={`px-2 py-1 border rounded font-bold text-[11px] ${getStatusStyle(selectedRecord.status).badge}`}
+                  className={`px-2 py-1 border rounded font-bold text-[11px] ${getHistoryDisplayStatus(selectedRecord).badge}`}
                 >
-                  {getStatusText(selectedRecord.status)}
+                  {getHistoryDisplayStatus(selectedRecord).label}
                 </div>
               </div>
             </div>
@@ -572,18 +591,28 @@ export default function EmployeeHistoryPage() {
             </div>
 
             {/* Thông tin thêm: Tổng giờ làm, Tăng ca, Ghi chú */}
-            {(selectedRecord.actualHours != null || selectedRecord.overtimeHours != null || selectedRecord.note) && (
+            {(selectedRecord.actualHours != null || selectedRecord.overtimeHours != null || selectedRecord.note || isForgotCheckoutRecord(selectedRecord)) && (
               <div className="space-y-3 mb-6 p-4 rounded-2xl border bg-gray-50 border-gray-200">
-                {selectedRecord.actualHours != null && (
+                {selectedRecord.actualHours != null ? (
                   <div className="flex justify-between text-sm">
                     <span className="font-semibold text-gray-500">Tổng giờ làm:</span>
                     <span className="font-bold text-[#0b1c30]">{selectedRecord.actualHours}h</span>
                   </div>
-                )}
+                ) : isForgotCheckoutRecord(selectedRecord) ? (
+                  <div className="flex justify-between text-sm">
+                    <span className="font-semibold text-gray-500">Tổng giờ làm:</span>
+                    <span className="font-bold text-gray-400">--</span>
+                  </div>
+                ) : null}
                 {selectedRecord.overtimeHours != null && selectedRecord.overtimeHours > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="font-semibold text-gray-500">Tăng ca:</span>
                     <span className="font-bold text-[#00288e]">{selectedRecord.overtimeHours}h</span>
+                  </div>
+                )}
+                {isForgotCheckoutRecord(selectedRecord) && (
+                  <div className="flex justify-between text-sm border-t pt-2">
+                    <span className="font-semibold text-purple-600">⚠ Chưa thực hiện chấm công ra</span>
                   </div>
                 )}
                 {selectedRecord.note && (
@@ -664,14 +693,14 @@ export default function EmployeeHistoryPage() {
             </p>
           </div>
 
-          {/* Card Vắng */}
+          {/* Card Quên check-out */}
           <div
             className="rounded-2xl p-3 text-center"
             style={{ background: '#ffffff', border: '1px solid #c4c5d5', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}
           >
-            <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: '#444653' }}>Vắng</p>
-            <p className="text-xl font-black" style={{ color: '#ba1a1a' }}>
-              {formatNumber(absentDays)}
+            <p className="text-[9px] min-[375px]:text-[10px] min-[410px]:text-[11px] font-bold uppercase tracking-tight mb-1" style={{ color: '#444653' }}>QUÊN CHECK-OUT</p>
+            <p className="text-xl font-black" style={{ color: '#7c3aed' }}>
+              {formatNumber(forgotCheckoutCount)}
             </p>
           </div>
         </div>
@@ -698,14 +727,14 @@ export default function EmployeeHistoryPage() {
         ) : (
           <div className="space-y-3">
             {filteredHistories.map((item) => {
-              const style = getStatusStyle(item.status);
+              const dispStatus = getHistoryDisplayStatus(item);
               const dateDetails = getDayDetails(item.attendanceDate);
 
               return (
                 <div
                   key={item.attendanceId}
                   onClick={() => openDetail(item)}
-                  className={`rounded-2xl p-4 flex items-center justify-between cursor-pointer transition-colors active:bg-[#eff4ff] hover:bg-[#f8f9ff] ${style.borderLeft}`}
+                  className={`rounded-2xl p-4 flex items-center justify-between cursor-pointer transition-colors active:bg-[#eff4ff] hover:bg-[#f8f9ff] ${dispStatus.borderLeft}`}
                   style={{ background: '#ffffff', border: '1px solid #c4c5d5', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}
                 >
                   {/* Cột Ngày bên trái */}
@@ -720,15 +749,19 @@ export default function EmployeeHistoryPage() {
                   {/* Cột Nội dung ở giữa */}
                   <div className="flex-1 px-4">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-sm font-bold ${style.checkInText}`}>{formatTimeFromApi(item.checkInTime)}</span>
+                      <span className={`text-sm font-bold ${dispStatus.checkInText}`}>
+                        {formatTimeFromApi(item.checkInTime)}
+                      </span>
                       <span style={{ color: '#9da3b4' }}>→</span>
-                      <span className="text-sm font-bold" style={{ color: '#0b1c30' }}>{formatTimeFromApi(item.checkOutTime)}</span>
+                      <span className="text-sm font-bold" style={{ color: '#0b1c30' }}>
+                        {formatTimeFromApi(item.checkOutTime)}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1.5 mt-1.5">
-                      <div className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
-                      <p className={`text-[11px] font-bold ${style.text}`}>
-                        {getStatusText(item.status)}
-                        {item.overtimeHours != null && item.overtimeHours > 0 && " (Tăng ca)"}
+                      <div className={`w-1.5 h-1.5 rounded-full ${dispStatus.dot}`} />
+                      <p className={`text-[11px] font-bold ${dispStatus.text}`}>
+                        {dispStatus.label}
+                        {item.overtimeHours != null && item.overtimeHours > 0 && ' (Tăng ca)'}
                       </p>
                     </div>
                   </div>
@@ -738,7 +771,7 @@ export default function EmployeeHistoryPage() {
                     <ChevronRight size={20} />
                   </div>
                 </div>
-              )
+              );
             })}
           </div>
         )}

@@ -2,7 +2,6 @@ using AutoMapper;
 using GpsAttendance.API.DTOs.Auth;
 using GpsAttendance.API.DTOs.Attendance;
 using GpsAttendance.API.DTOs.Employee;
-using GpsAttendance.API.DTOs.Location;
 using GpsAttendance.API.DTOs.WorkingHours;
 using GpsAttendance.API.Models;
 
@@ -65,15 +64,10 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.Department,
                 opt => opt.MapFrom(src => src.Employee != null ? src.Employee.Department : string.Empty))
             .ForMember(dest => dest.LocationName,
-                opt => opt.MapFrom(src => src.Location != null ? src.Location.LocationName : string.Empty));
-
-        // ── Location Mappings ─────────────────────────────────────────────────
-
-        CreateMap<Location, LocationDto>().ReverseMap();
-        CreateMap<CreateLocationDto, Location>()
-            .ForMember(dest => dest.LocationId, opt => opt.Ignore())
-            .ForMember(dest => dest.IsActive, opt => opt.Ignore())
-            .ForMember(dest => dest.Attendances, opt => opt.Ignore());
+                opt => opt.MapFrom(src => src.Location != null ? src.Location.LocationName : string.Empty))
+            // Trường phái sinh – tính thủ công trong service, AutoMapper bỏ qua
+            .ForMember(dest => dest.IsForgotCheckout, opt => opt.Ignore())
+            .ForMember(dest => dest.DisplayStatus, opt => opt.Ignore());
 
         // ── WorkingHours Mappings ─────────────────────────────────────────────
 

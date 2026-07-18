@@ -226,6 +226,9 @@ public class AttendanceService : IAttendanceService
     /// <summary>
     /// Lấy lịch sử chấm công của nhân viên (dành cho Employee).
     /// Mặc định lấy 30 ngày gần nhất nếu không truyền ngày.
+    /// IsForgotCheckout được tính theo giờ Việt Nam:
+    ///   có CheckIn + chưa CheckOut + AttendanceDate đã qua ngày hôm nay.
+    /// Status gốc (Late / OnTime) KHÔNG bị ghi đè.
     /// </summary>
     public async Task<IEnumerable<AttendanceResponseDto>> GetMyHistoryAsync(
         int employeeId,
@@ -236,7 +239,38 @@ public class AttendanceService : IAttendanceService
         var to = toDate ?? DateTimeHelper.GetVietnamNow();
 
         var records = await _attendanceRepository.GetHistoryWithDetailsAsync(employeeId, from, to);
-        return _mapper.Map<IEnumerable<AttendanceResponseDto>>(records);
+        var recordList = records.ToList();
+
+        // Map sang DTO (IsForgotCheckout / DisplayStatus được Ignore trong MappingProfile)
+        var dtos = _mapper.Map<List<AttendanceResponseDto>>(recordList);
+
+        // Lấy ngày hiện tại theo giờ Việt Nam một lần duy nhất
+        var vietnamNow = DateTimeHelper.GetVietnamNow();
+
+        // Tính IsForgotCheckout và DisplayStatus theo đúng nghiệp vụ:
+        // – Phải có giờ vào
+        // – Chưa có giờ ra
+        // – AttendanceDate đã qua (nhỏ hơn ngày hôm nay tại Việt Nam)
+        // Bản ghi của hôm nay chưa check-out KHÔNG được tính là quên check-out.
+        for (int i = 0; i < dtos.Count; i++)
+        {
+            var entity = recordList[i];
+            var dto = dtos[i];
+
+            bool isForgotCheckout =
+                entity.CheckInTime != default
+                && entity.CheckOutTime == null
+                && entity.AttendanceDate.Date < vietnamNow.Date;
+
+            dto.IsForgotCheckout = isForgotCheckout;
+
+            // DisplayStatus ưu tiên ForgotCheckout; Status gốc (Late/OnTime) vẫn được giữ
+            dto.DisplayStatus = isForgotCheckout
+                ? "ForgotCheckout"
+                : entity.Status;
+        }
+
+        return dtos;
     }
 
     /// <summary>

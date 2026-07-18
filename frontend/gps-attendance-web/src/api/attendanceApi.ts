@@ -39,6 +39,10 @@ export type MyHistoryResponse = {
   locationName?: string;
   address?: string;
   note?: string | null;
+  /** Tính từ backend: true khi có checkIn, không có checkOut, ngày đã qua (giờ VN) */
+  isForgotCheckout: boolean;
+  /** "ForgotCheckout" hoặc bằng status gốc – ưu tiên hiển thị */
+  displayStatus?: string;
 };
 
 export const attendanceApi = {

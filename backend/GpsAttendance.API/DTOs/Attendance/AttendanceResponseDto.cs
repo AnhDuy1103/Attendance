@@ -27,4 +27,16 @@ public class AttendanceResponseDto
     public double? OvertimeHours { get; set; }
     public string Status { get; set; } = string.Empty;
     public string? Note { get; set; }
+
+    // Trạng thái phái sinh – xác định sau khi mapping, không lưu DB
+    /// <summary>
+    /// True khi nhân viên đã check-in, chưa check-out và AttendanceDate đã qua (so với giờ Việt Nam).
+    /// Status gốc (Late / OnTime) vẫn được giữ nguyên.
+    /// </summary>
+    public bool IsForgotCheckout { get; set; }
+
+    /// <summary>
+    /// Trạng thái hiển thị ưu tiên: "ForgotCheckout" nếu IsForgotCheckout = true, ngược lại bằng Status.
+    /// </summary>
+    public string DisplayStatus { get; set; } = string.Empty;
 }

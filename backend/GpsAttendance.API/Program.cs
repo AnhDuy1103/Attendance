@@ -100,7 +100,6 @@ builder.Services.AddScoped<IWorkingHoursRepository, WorkingHoursRepository>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<EmployeeService>();
-builder.Services.AddScoped<LocationService>();
 builder.Services.AddScoped<WorkingHoursService>();
 builder.Services.AddSingleton<HaversineService>(); // Stateless, dùng Singleton
 builder.Services.AddHttpClient();
