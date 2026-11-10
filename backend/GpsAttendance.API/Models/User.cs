@@ -13,6 +13,9 @@ public class User
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int Id { get; set; }
 
+    [MaxLength(50)]
+    public string? Username { get; set; }
+
     /// <summary>Số điện thoại đăng nhập, duy nhất trong hệ thống</summary>
     [Required(ErrorMessage = "PhoneNumber là bắt buộc")]
     [MaxLength(20, ErrorMessage = "PhoneNumber không được vượt quá 20 ký tự")]
@@ -32,6 +35,15 @@ public class User
 
     /// <summary>Trạng thái hoạt động của tài khoản</summary>
     public bool IsActive { get; set; } = true;
+
+    /// <summary>Mã thiết bị hiện được phép đăng nhập (được lưu dưới dạng hash).</summary>
+    [MaxLength(255)]
+    public string? DeviceTokenHash { get; set; }
+
+    [MaxLength(100)] public string? DeviceName { get; set; }
+    [MaxLength(50)] public string? DevicePlatform { get; set; }
+    [MaxLength(100)] public string? DeviceBrowser { get; set; }
+    public DateTime? DeviceLastLoginAt { get; set; }
 
     // Navigation Properties
     /// <summary>Thông tin nhân viên liên kết với tài khoản này</summary>

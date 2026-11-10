@@ -62,4 +62,27 @@ public class SettingsController : ControllerBase
             return BadRequest(ApiResponseDto<object>.Fail(ex.Message));
         }
     }
+
+    /// <summary>[Admin] Lấy thông tin địa chỉ từ tọa độ (Reverse Geocode)</summary>
+    [HttpGet("place-reverse")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponseDto<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponseDto<object>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ReverseGeocode([FromQuery] double latitude, [FromQuery] double longitude)
+    {
+        if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)
+        {
+            return BadRequest(ApiResponseDto<object>.Fail("Tọa độ không hợp lệ"));
+        }
+
+        try
+        {
+            var details = await _placeSearchService.ReverseGeocodeAsync(latitude, longitude);
+            return Ok(ApiResponseDto<object>.Ok(details, "Lấy địa chỉ từ tọa độ thành công"));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponseDto<object>.Fail(ex.Message));
+        }
+    }
 }

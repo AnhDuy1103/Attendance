@@ -25,6 +25,16 @@ type TodayAttendance = {
   status: string;
 };
 
+// Giữ họ tên trên một dòng nhưng giảm cỡ chữ khi tên dài để không bị cắt.
+const getNameFontSize = (name: string) => {
+  const length = name.trim().length;
+  if (length > 32) return '0.68rem';
+  if (length > 26) return '0.76rem';
+  if (length > 21) return '0.86rem';
+  if (length > 17) return '0.95rem';
+  return '1.125rem';
+};
+
 // ─── Component ────────────────────────────────────────────────
 export default function EmployeeHomePage() {
   const navigate = useNavigate()
@@ -286,15 +296,19 @@ export default function EmployeeHomePage() {
         className="rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
         style={{ background: '#ffffff', border: '1px solid #c4c5d5', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 min-w-0 flex-1">
           <div
             className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold shrink-0"
             style={{ background: '#dde1ff', color: '#00288e' }}
           >
             {getInitials(employeeProfile.fullName)}
           </div>
-          <div>
-            <p className="text-lg font-bold" style={{ color: '#0b1c30' }}>
+          <div className="min-w-0 flex-1">
+            <p
+              className="font-bold whitespace-nowrap"
+              title={employeeProfile.fullName}
+              style={{ color: '#0b1c30', fontSize: getNameFontSize(employeeProfile.fullName), lineHeight: 1.25 }}
+            >
               {employeeProfile.fullName}
             </p>
             <p className="text-sm font-medium mt-0.5" style={{ color: '#444653' }}>

@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using GpsAttendance.API.Data;
 using GpsAttendance.API.Mappings;
@@ -10,6 +12,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+
+Directory.SetCurrentDirectory(AppContext.BaseDirectory);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -103,6 +107,56 @@ builder.Services.AddScoped<EmployeeService>();
 builder.Services.AddScoped<WorkingHoursService>();
 builder.Services.AddSingleton<HaversineService>(); // Stateless, dùng Singleton
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("Nominatim", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(8);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    ConnectCallback = async (context, cancellationToken) =>
+    {
+        var host = context.DnsEndPoint.Host;
+        var port = context.DnsEndPoint.Port;
+        IPAddress[] ipAddresses;
+
+        try
+        {
+            ipAddresses = await Dns.GetHostAddressesAsync(host, cancellationToken);
+        }
+        catch
+        {
+            ipAddresses = Array.Empty<IPAddress>();
+        }
+
+        if (ipAddresses.Length == 0 && host.Equals("nominatim.openstreetmap.org", StringComparison.OrdinalIgnoreCase))
+        {
+            ipAddresses = new[]
+            {
+                IPAddress.Parse("151.101.65.91"),
+                IPAddress.Parse("151.101.1.91"),
+                IPAddress.Parse("151.101.129.91"),
+                IPAddress.Parse("151.101.193.91")
+            };
+        }
+
+        foreach (var ip in ipAddresses)
+        {
+            var socket = new Socket(ip.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            try
+            {
+                await socket.ConnectAsync(new IPEndPoint(ip, port), cancellationToken);
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+            catch
+            {
+                socket.Dispose();
+            }
+        }
+
+        throw new SocketException((int)SocketError.HostNotFound);
+    }
+});
+
 builder.Services.AddScoped<IGeoLocationService, GeoLocationService>();
 builder.Services.AddScoped<IPlaceSearchService, NominatimPlacesService>();
 
@@ -134,6 +188,8 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
     });
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<IEmailSender, GmailEmailSender>();
 
 // ════════════════════════════════════════════════════════════════════════════
 // 9. SWAGGER / OpenAPI với Bearer Token Support
@@ -203,7 +259,7 @@ app.Logger.LogInformation(
 );
 
 // Tự động chạy migration khi khởi động (chỉ nên dùng trong Development)
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Database:InitializeOnStartup"))
 {
     using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -246,3 +302,6 @@ app.UseAuthorization();             // Phân quyền Role
 app.MapControllers();
 
 app.Run();
+
+
+

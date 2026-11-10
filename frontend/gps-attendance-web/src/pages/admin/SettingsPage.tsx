@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle,
@@ -12,6 +12,7 @@ import {
 import { workingHoursApi } from "../../api/workingHoursApi";
 import { locationApi } from "../../api/locationApi";
 import { settingsApi, PlaceSuggestion } from "../../api/settingsApi";
+import LocationMapPicker from "../../components/admin/settings/LocationMapPicker";
 
 type LocationForm = {
   locationId: number | null;
@@ -55,10 +56,15 @@ export default function SettingsPage() {
   });
   const [originalLocationForm, setOriginalLocationForm] = useState<LocationForm | null>(null);
   const [placeSuggestions, setPlaceSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [isSearchingPlace, setIsSearchingPlace] = useState(false);
   const [isSavingLocation, setIsSavingLocation] = useState(false);
   const [locationError, setLocationError] = useState("");
+
+  const isSelectingRef = useRef(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   const normalizeTimeForInput = (value?: string | null): string => {
     if (!value) return "";
@@ -126,8 +132,12 @@ export default function SettingsPage() {
         longitude: String(data.longitude ?? ""),
         radius: String(data.radius ?? 100),
       };
+      isSelectingRef.current = true;
       setLocationForm(next);
       setOriginalLocationForm(next);
+      setTimeout(() => {
+        isSelectingRef.current = false;
+      }, 1000);
     } catch (error: any) {
       setLocationError(error?.response?.data?.message || "Không thể tải vị trí chấm công.");
     } finally {
@@ -140,31 +150,61 @@ export default function SettingsPage() {
     fetchActiveLocation();
   }, []);
 
+  // Close suggestions when clicking outside
   useEffect(() => {
-    const keyword = locationForm.address.trim();
-    if (keyword.length < 3) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const executeSearch = async (rawKeyword: string) => {
+    const keyword = rawKeyword.trim();
+    if (keyword.length < 2) {
       setPlaceSuggestions([]);
+      setShowSuggestions(false);
       return;
     }
 
-    const timeoutId = window.setTimeout(async () => {
-      try {
-        setIsSearchingPlace(true);
-        setLocationError("");
-        const suggestions = await settingsApi.searchPlaceAutocomplete(keyword);
-        setPlaceSuggestions(suggestions);
-      } catch (error: any) {
-        setPlaceSuggestions([]);
-        setLocationError(getSafeErrorMessage(error?.response?.data?.message || "Không thể tìm địa chỉ."));
-      } finally {
-        setIsSearchingPlace(false);
+    try {
+      setIsSearchingPlace(true);
+      setLocationError("");
+      setHasSearched(true);
+      const suggestions = await settingsApi.searchPlaceAutocomplete(keyword);
+      setPlaceSuggestions(suggestions);
+      setShowSuggestions(true);
+    } catch (error: any) {
+      setPlaceSuggestions([]);
+      setLocationError(getSafeErrorMessage(error?.response?.data?.message || "Không thể tìm địa chỉ."));
+    } finally {
+      setIsSearchingPlace(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isSelectingRef.current) return;
+    const keyword = locationForm.address.trim();
+    if (keyword.length < 3) {
+      setPlaceSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      if (!isSelectingRef.current) {
+        executeSearch(keyword);
       }
-    }, 1000);
+    }, 600);
 
     return () => window.clearTimeout(timeoutId);
   }, [locationForm.address]);
 
   const handleSelectPlaceSuggestion = async (suggestion: PlaceSuggestion) => {
+    isSelectingRef.current = true;
+    setShowSuggestions(false);
     try {
       setIsSearchingPlace(true);
       setLocationError("");
@@ -176,10 +216,14 @@ export default function SettingsPage() {
         longitude: String(details.longitude),
       }));
       setPlaceSuggestions([]);
+      triggerToast("Đã chọn vị trí và cập nhật tọa độ.");
     } catch (error: any) {
       setLocationError(getSafeErrorMessage(error?.response?.data?.message || "Không thể lấy chi tiết địa chỉ."));
     } finally {
       setIsSearchingPlace(false);
+      setTimeout(() => {
+        isSelectingRef.current = false;
+      }, 500);
     }
   };
 
@@ -189,21 +233,82 @@ export default function SettingsPage() {
       return;
     }
 
+    setIsSearchingPlace(true);
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
         setLocationForm((prev) => ({
           ...prev,
-          latitude: String(position.coords.latitude),
-          longitude: String(position.coords.longitude),
+          latitude: String(lat),
+          longitude: String(lon),
         }));
+
+        try {
+          const rev = await settingsApi.reverseGeocode(lat, lon);
+          if (rev && rev.address) {
+            isSelectingRef.current = true;
+            setLocationForm((prev) => ({
+              ...prev,
+              address: rev.address,
+            }));
+            setTimeout(() => {
+              isSelectingRef.current = false;
+            }, 500);
+          }
+        } catch {
+          // Keep coordinates even if reverse geocoding is unavailable
+        } finally {
+          setIsSearchingPlace(false);
+        }
+
         setLocationError("");
         triggerToast("Đã cập nhật tọa độ từ thiết bị.");
       },
       () => {
-        setLocationError("Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập vị trí.");
+        setIsSearchingPlace(false);
+        setLocationError("Không thể lấy vị trí hiện tại. Vui lòng kiểm tra quyền truy cập vị trí trên trình duyệt.");
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
+  };
+
+  const parsedLat = locationForm.latitude.trim() !== "" ? Number(locationForm.latitude) : null;
+  const parsedLng = locationForm.longitude.trim() !== "" ? Number(locationForm.longitude) : null;
+  const isLatInvalid =
+    locationForm.latitude.trim() !== "" &&
+    (Number.isNaN(parsedLat) || (parsedLat !== null && (parsedLat < -90 || parsedLat > 90)));
+  const isLngInvalid =
+    locationForm.longitude.trim() !== "" &&
+    (Number.isNaN(parsedLng) || (parsedLng !== null && (parsedLng < -180 || parsedLng > 180)));
+  const isCoordinatesInvalid = isLatInvalid || isLngInvalid;
+
+  const handleMapLocationChange = async (lat: number, lng: number) => {
+    isSelectingRef.current = true;
+    const latStr = lat.toFixed(6);
+    const lngStr = lng.toFixed(6);
+    setLocationForm((prev) => ({
+      ...prev,
+      latitude: latStr,
+      longitude: lngStr,
+    }));
+    setLocationError("");
+
+    try {
+      const rev = await settingsApi.reverseGeocode(lat, lng);
+      if (rev && rev.address) {
+        setLocationForm((prev) => ({
+          ...prev,
+          address: rev.address,
+        }));
+      }
+    } catch {
+      // Keep coordinates even if reverse geocode fails
+    } finally {
+      setTimeout(() => {
+        isSelectingRef.current = false;
+      }, 500);
+    }
   };
 
   const validateWorkingHours = (): boolean => {
@@ -456,30 +561,59 @@ export default function SettingsPage() {
                 />
               </div>
 
-              <div className="relative">
-                <label className="mb-2 block text-sm font-semibold text-gray-600">Địa chỉ</label>
-                <div className="relative">
-                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    value={locationForm.address}
-                    onChange={(event) => setLocationForm((prev) => ({ ...prev, address: event.target.value }))}
-                    placeholder="Nhập địa chỉ để tìm kiếm..."
-                    className="h-11 w-full rounded-lg border border-gray-200 bg-gray-50 pl-10 pr-10 text-sm font-medium text-gray-900 focus:border-[#00288e] focus:outline-none focus:ring-2 focus:ring-[#00288e]/15"
-                  />
-                  {isSearchingPlace && (
-                    <Loader2 size={18} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />
-                  )}
+              <div ref={searchContainerRef} className="relative">
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="text-sm font-semibold text-gray-700">Địa chỉ / Tìm kiếm vị trí</label>
+                  <span className="text-xs text-gray-400">Nhập địa chỉ hoặc tên khu vực rồi bấm Tìm</span>
+                </div>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={locationForm.address}
+                      onChange={(event) => {
+                        setLocationForm((prev) => ({ ...prev, address: event.target.value }));
+                        setHasSearched(false);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          executeSearch(locationForm.address);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (placeSuggestions.length > 0) setShowSuggestions(true);
+                      }}
+                      placeholder="Nhập địa chỉ, tên đường, KCN hoặc quận/huyện..."
+                      className="h-11 w-full rounded-lg border border-gray-200 bg-gray-50 pl-10 pr-10 text-sm font-medium text-gray-900 focus:border-[#00288e] focus:outline-none focus:ring-2 focus:ring-[#00288e]/15"
+                    />
+                    {isSearchingPlace && (
+                      <Loader2 size={18} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[#00288e]" />
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => executeSearch(locationForm.address)}
+                    disabled={isSearchingPlace || !locationForm.address.trim()}
+                    className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#00288e] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#002070] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSearchingPlace ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                    <span>Tìm</span>
+                  </button>
                 </div>
 
-                {placeSuggestions.length > 0 && (
-                  <div className="absolute z-50 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                {showSuggestions && placeSuggestions.length > 0 && (
+                  <div className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                    <div className="border-b border-gray-100 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-500">
+                      Chọn địa điểm bên dưới để tự động điền tọa độ ({placeSuggestions.length} kết quả):
+                    </div>
                     {placeSuggestions.map((item) => (
                       <button
                         key={item.placeId}
                         type="button"
                         onClick={() => handleSelectPlaceSuggestion(item)}
-                        className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-blue-50"
+                        className="flex w-full items-start gap-3 border-b border-gray-50 px-4 py-2.5 text-left transition-colors hover:bg-blue-50"
                       >
                         <MapPin size={17} className="mt-0.5 shrink-0 text-[#00288e]" />
                         <span className="text-sm font-medium text-gray-800">{item.description}</span>
@@ -487,31 +621,56 @@ export default function SettingsPage() {
                     ))}
                   </div>
                 )}
+
+                {showSuggestions && hasSearched && placeSuggestions.length === 0 && !isSearchingPlace && (
+                  <div className="absolute z-50 mt-1 w-full rounded-lg border border-amber-200 bg-amber-50 p-3.5 shadow-lg">
+                    <p className="text-xs font-bold text-amber-800">
+                      Không tìm thấy địa điểm cụ thể cho từ khóa này.
+                    </p>
+                    <p className="mt-1 text-xs text-amber-700">
+                      Gợi ý: Hãy thử nhập tên ngắn gọn hơn (tên đường, quận/huyện hoặc tỉnh/thành phố) hoặc bấm <strong>"Dùng vị trí hiện tại"</strong> bên dưới.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-600">Vĩ độ</label>
+                  <label className="mb-2 block text-sm font-semibold text-gray-600">Vĩ độ (Latitude)</label>
                   <input
                     type="text"
                     value={locationForm.latitude}
                     onChange={(event) => setLocationForm((prev) => ({ ...prev, latitude: event.target.value }))}
                     placeholder="15.879440"
-                    className="h-11 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-medium text-gray-900 focus:border-[#00288e] focus:outline-none focus:ring-2 focus:ring-[#00288e]/15"
+                    className={`h-11 w-full rounded-lg border px-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 ${
+                      isLatInvalid
+                        ? "border-red-400 bg-red-50/40 focus:border-red-500 focus:ring-red-500/20"
+                        : "border-gray-200 bg-gray-50 focus:border-[#00288e] focus:ring-[#00288e]/15"
+                    }`}
                   />
+                  {isLatInvalid && (
+                    <p className="mt-1 text-xs font-semibold text-red-600">Vĩ độ phải từ -90 đến 90</p>
+                  )}
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-600">Kinh độ</label>
+                  <label className="mb-2 block text-sm font-semibold text-gray-600">Kinh độ (Longitude)</label>
                   <input
                     type="text"
                     value={locationForm.longitude}
                     onChange={(event) => setLocationForm((prev) => ({ ...prev, longitude: event.target.value }))}
                     placeholder="108.335000"
-                    className="h-11 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-medium text-gray-900 focus:border-[#00288e] focus:outline-none focus:ring-2 focus:ring-[#00288e]/15"
+                    className={`h-11 w-full rounded-lg border px-3 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 ${
+                      isLngInvalid
+                        ? "border-red-400 bg-red-50/40 focus:border-red-500 focus:ring-red-500/20"
+                        : "border-gray-200 bg-gray-50 focus:border-[#00288e] focus:ring-[#00288e]/15"
+                    }`}
                   />
+                  {isLngInvalid && (
+                    <p className="mt-1 text-xs font-semibold text-red-600">Kinh độ phải từ -180 đến 180</p>
+                  )}
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-600">Bán kính</label>
+                  <label className="mb-2 block text-sm font-semibold text-gray-600">Bán kính cho phép</label>
                   <div className="relative">
                     <input
                       type="number"
@@ -524,19 +683,37 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {/* Cảnh báo tọa độ không hợp lệ */}
+              {isCoordinatesInvalid && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-bold text-red-700">
+                  <AlertCircle size={15} className="shrink-0" />
+                  <span>Tọa độ không hợp lệ: Vui lòng nhập số hợp lệ hoặc click chọn vị trí trên bản đồ.</span>
+                </div>
+              )}
+
+              {/* Bản đồ Leaflet + OpenStreetMap */}
+              <LocationMapPicker
+                latitude={isCoordinatesInvalid ? null : parsedLat}
+                longitude={isCoordinatesInvalid ? null : parsedLng}
+                radius={Number(locationForm.radius)}
+                address={locationForm.address}
+                onLocationChange={handleMapLocationChange}
+              />
+
               <div className="flex flex-col gap-3 rounded-lg border border-gray-100 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-gray-700">Cập nhật tọa độ nhanh</p>
+                  <p className="text-sm font-semibold text-gray-700">Cập nhật tọa độ nhanh từ thiết bị</p>
                   <p className="mt-1 text-xs text-gray-500">
-                    Dữ liệu tìm kiếm địa chỉ © OpenStreetMap contributors.
+                    Hệ thống sẽ lấy tọa độ GPS thực tế của bạn và tự động điền địa chỉ.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleUseCurrentLocation}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-50 px-4 text-sm font-bold text-[#00288e] transition-colors hover:bg-blue-100"
+                  disabled={isSearchingPlace}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-50 px-4 text-sm font-bold text-[#00288e] transition-colors hover:bg-blue-100 active:scale-[0.98] disabled:opacity-50"
                 >
-                  <Crosshair size={17} />
+                  {isSearchingPlace ? <Loader2 size={17} className="animate-spin" /> : <Crosshair size={17} />}
                   Dùng vị trí hiện tại
                 </button>
               </div>

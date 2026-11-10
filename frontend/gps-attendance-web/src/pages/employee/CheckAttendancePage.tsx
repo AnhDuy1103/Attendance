@@ -10,6 +10,7 @@ import {
   AlertCircle
 } from 'lucide-react'
 import { attendanceApi, MyHistoryResponse } from '../../api/attendanceApi'
+import { STORAGE_KEYS } from '../../utils/constants'
 
 // ─── Types ────────────────────────────────────────────────────
 type AttendanceStep = 'not_checked_in' | 'checked_in' | 'checked_out'
@@ -22,11 +23,10 @@ type TodayAttendance = {
   status: string
 }
 
-// ─── Mock Data ────────────────────────────────────────────────
-const employeeInfo = {
-  fullName: 'Hồ sơ nhân viên',
-  initials: 'NV',
-  department: 'Khối nhân sự',
+type EmployeeProfile = {
+  fullName: string
+  department: string
+  position: string
 }
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -76,6 +76,17 @@ const getStatusDisplay = (status: string) => {
   }
 };
 
+const getInitials = (name: string) => name.split(' ').filter(Boolean).map(word => word[0]).join('').slice(0, 2).toUpperCase() || 'NV';
+
+const getNameFontSize = (name: string) => {
+  const length = name.trim().length;
+  if (length > 32) return '0.68rem';
+  if (length > 26) return '0.76rem';
+  if (length > 21) return '0.86rem';
+  if (length > 17) return '0.95rem';
+  return '1.125rem';
+};
+
 const getCurrentLocation = (): Promise<{ latitude: number; longitude: number }> => {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -123,6 +134,9 @@ export default function CheckAttendancePage() {
   const [isCheckingOut, setIsCheckingOut] = useState(false)
   const [toastMessage, setToastMessage] = useState("")
   const [errorMessage, setErrorMessage] = useState("")
+  const [employeeProfile, setEmployeeProfile] = useState<EmployeeProfile>({
+    fullName: 'Nhân viên', department: 'Đang cập nhật', position: 'Nhân viên'
+  })
 
   // ─── Time Logic ───
   useEffect(() => {
@@ -186,6 +200,17 @@ export default function CheckAttendancePage() {
   };
 
   useEffect(() => {
+    const raw = localStorage.getItem('user') || localStorage.getItem(STORAGE_KEYS.USER_INFO)
+    if (raw) {
+      try {
+        const user = JSON.parse(raw)
+        setEmployeeProfile({
+          fullName: user.fullName || 'Nhân viên',
+          department: user.department || 'Đang cập nhật',
+          position: user.position || 'Nhân viên',
+        })
+      } catch { /* dùng giá trị mặc định */ }
+    }
     fetchTodayAttendance();
     fetchRecentHistory();
   }, [])
@@ -306,18 +331,21 @@ export default function CheckAttendancePage() {
         
         {/* ── Card thông tin nhân viên ── */}
         <div
-          className="rounded-xl flex items-center gap-4 p-4"
+          className="rounded-2xl p-5 flex items-center justify-between gap-4"
           style={{ background: '#ffffff', border: '1px solid #c4c5d5', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}
         >
           <div
-            className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shrink-0"
+            className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold shrink-0"
             style={{ background: '#dde1ff', color: '#00288e' }}
           >
-            {employeeInfo.initials}
+            {getInitials(employeeProfile.fullName)}
           </div>
-          <div className="flex-1">
-            <p className="text-base font-bold" style={{ color: '#0b1c30' }}>{employeeInfo.fullName}</p>
-            <p className="text-xs font-medium" style={{ color: '#444653' }}>{employeeInfo.department}</p>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold whitespace-nowrap" title={employeeProfile.fullName} style={{ color: '#0b1c30', fontSize: getNameFontSize(employeeProfile.fullName), lineHeight: 1.25 }}>
+              {employeeProfile.fullName}
+            </p>
+            <p className="text-sm font-medium mt-0.5 truncate" style={{ color: '#444653' }}>{employeeProfile.department}</p>
+            <p className="text-xs font-semibold mt-0.5 truncate" style={{ color: '#00288e' }}>{employeeProfile.position}</p>
           </div>
           <div className="text-right shrink-0">
             <p className="text-lg font-bold font-mono" style={{ color: '#00288e' }}>

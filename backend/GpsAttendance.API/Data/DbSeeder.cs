@@ -13,11 +13,13 @@ public static class DbSeeder
 
         // 1. Admin User
         var adminPhone = "0900000000";
+        var adminUsername = "nhansu1";
         if (!await context.Users.AnyAsync(u => u.PhoneNumber == adminPhone))
         {
             var adminUser = new User
             {
                 PhoneNumber = adminPhone,
+                Username = await context.Users.AnyAsync(u => u.Username == adminUsername) ? null : adminUsername,
                 PasswordHash = AuthService.HashPassword("123456"),
                 Role = "Admin",
                 IsActive = true,
@@ -25,6 +27,15 @@ public static class DbSeeder
             };
             context.Users.Add(adminUser);
             await context.SaveChangesAsync();
+        }
+        else
+        {
+            var admin = await context.Users.FirstAsync(u => u.PhoneNumber == adminPhone);
+            if (string.IsNullOrWhiteSpace(admin.Username) && !await context.Users.AnyAsync(u => u.Username == adminUsername))
+            {
+                admin.Username = adminUsername;
+                await context.SaveChangesAsync();
+            }
         }
 
         // 2. Employee User & 3. Employee Profile

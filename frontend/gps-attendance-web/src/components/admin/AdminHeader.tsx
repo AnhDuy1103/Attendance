@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Bell, ChevronDown } from 'lucide-react'
+import { Bell, ChevronDown, Check, X } from 'lucide-react'
 import { accountApi } from '../../api/accountApi'
+import { deviceApprovalApi, DeviceRequest } from '../../api/deviceApprovalApi'
 
 const PAGE_TITLES: Record<string, string> = {
   '/admin/dashboard': 'Tổng quan hệ thống',
@@ -69,6 +70,12 @@ export default function AdminHeader({ adminName }: AdminHeaderProps) {
     fullName: adminName || '',
     role: '',
   })
+  const [deviceRequests, setDeviceRequests] = useState<DeviceRequest[]>([])
+  const [showNotifications, setShowNotifications] = useState(false)
+
+  const loadDeviceRequests = async () => {
+    try { setDeviceRequests(await deviceApprovalApi.getPending()) } catch { /* ignore notification errors */ }
+  }
 
   // ── Load User ───────────────────────────────────────────────
   const fetchCurrentUser = async () => {
@@ -105,6 +112,9 @@ export default function AdminHeader({ adminName }: AdminHeaderProps) {
     }
     // Sau do goi API lay du lieu moi nhat
     fetchCurrentUser()
+    loadDeviceRequests()
+    const timer = window.setInterval(loadDeviceRequests, 30000)
+    return () => window.clearInterval(timer)
   }, [])
 
   // ── Sync profile update ─────────────────────────────────────
@@ -148,14 +158,27 @@ export default function AdminHeader({ adminName }: AdminHeaderProps) {
       </h1>
 
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          aria-label="Thông báo"
-          className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
-        >
-          <Bell size={20} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-        </button>
+        <div className="relative">
+          <button type="button" aria-label="Thông báo" onClick={() => setShowNotifications((value) => !value)} className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
+            <Bell size={20} />
+            {deviceRequests.length > 0 && <span className="absolute top-1.5 right-1.5 min-w-2 h-2 px-1 bg-red-500 rounded-full" />}
+          </button>
+          {showNotifications && (
+            <div className="absolute right-0 top-12 z-50 w-96 rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
+              <p className="mb-2 text-sm font-bold text-gray-800">Yêu cầu thiết bị mới</p>
+              {deviceRequests.length === 0 ? <p className="py-4 text-center text-xs text-gray-500">Không có yêu cầu đang chờ</p> : deviceRequests.map((request) => (
+                <div key={request.requestId} className="mb-2 rounded-lg bg-gray-50 p-2.5 text-xs">
+                  <p className="font-semibold text-gray-800">{request.fullName} ({request.phoneNumber})</p>
+                  <p className="mt-1 text-gray-500">{request.deviceName || request.devicePlatform || 'Thiết bị mới'}</p>
+                  <div className="mt-2 flex justify-end gap-2">
+                    <button type="button" onClick={async () => { await deviceApprovalApi.reject(request.requestId); await loadDeviceRequests() }} className="inline-flex items-center gap-1 rounded bg-red-50 px-2 py-1 font-semibold text-red-700"><X size={13} /> Từ chối</button>
+                    <button type="button" onClick={async () => { await deviceApprovalApi.approve(request.requestId); await loadDeviceRequests() }} className="inline-flex items-center gap-1 rounded bg-green-50 px-2 py-1 font-semibold text-green-700"><Check size={13} /> Duyệt</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <button
           type="button"

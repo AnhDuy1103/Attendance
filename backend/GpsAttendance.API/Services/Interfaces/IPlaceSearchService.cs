@@ -9,4 +9,6 @@ public interface IPlaceSearchService
     Task<List<PlaceAutocompleteDto>> AutocompleteAsync(string input);
 
     Task<PlaceDetailsDto> GetPlaceDetailsAsync(string placeId);
+
+    Task<PlaceDetailsDto> ReverseGeocodeAsync(double latitude, double longitude);
 }

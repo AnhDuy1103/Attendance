@@ -22,15 +22,11 @@ export default function EmployeeHeader() {
           }}
         />
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center">
           <button className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#eff4ff] transition-colors">
             <Bell className="w-5 h-5 text-[#444653]" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
           </button>
-
-          <div className="w-10 h-10 rounded-full bg-[#00288e] text-white flex items-center justify-center font-bold border-2 border-[#d3e4fe]">
-            NA
-          </div>
         </div>
       </div>
     </header>

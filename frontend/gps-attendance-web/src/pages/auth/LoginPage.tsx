@@ -11,37 +11,41 @@ import {
   Loader2,
 } from 'lucide-react'
 import { STORAGE_KEYS, ROUTES } from '../../utils/constants'
-import { authApi } from '../../api/authApi'
+import { authApi, getDeviceToken } from '../../api/authApi'
 
 // ─── LoginPage ────────────────────────────────────────────────
 export default function LoginPage() {
   const navigate = useNavigate()
 
-  const [phoneNumber, setPhoneNumber] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword]       = useState('')
   const [remember, setRemember]       = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState('')
   const [shakeKey, setShakeKey]       = useState(0)   // increment to re-trigger shake
+  const [deviceApprovalOpen, setDeviceApprovalOpen] = useState(false)
+  const [deviceApprovalMessage, setDeviceApprovalMessage] = useState('')
 
   const triggerError = (msg: string) => {
     setError(msg)
     setShakeKey((k) => k + 1)   // re-mount element → replays animation
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const submitLogin = async (requestDeviceApproval = false) => {
     setError('')
-
-    if (!phoneNumber.trim() || !password.trim()) {
-      triggerError('Vui lòng nhập đầy đủ số điện thoại và mật khẩu.')
-      return
-    }
-
     setLoading(true)
     try {
-      const data = await authApi.login({ phoneNumber, password });
+      const data = await authApi.login({
+        identifier,
+        password,
+        deviceToken: getDeviceToken(),
+        deviceName: navigator.platform || 'Thiết bị không xác định',
+        devicePlatform: (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || navigator.platform,
+        // Backend giới hạn DeviceBrowser tối đa 100 ký tự.
+        deviceBrowser: navigator.userAgent.slice(0, 100),
+        requestDeviceApproval,
+      });
       
       // Save token and role
       localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
@@ -64,14 +68,29 @@ export default function LoginPage() {
         navigate(ROUTES.EMPLOYEE.HOME, { replace: true })
       }
     } catch (err: any) {
-      if (err.response && err.response.data && err.response.data.message) {
-        triggerError(err.response.data.message);
+      if (err.code === 'DEVICE_APPROVAL_CONFIRMATION_REQUIRED') {
+        setDeviceApprovalOpen(true)
+      } else if (err.code === 'DEVICE_APPROVAL_SENT') {
+        setDeviceApprovalOpen(false)
+        setDeviceApprovalMessage('Yêu cầu xét duyệt thiết bị đã được gửi thành công.')
+      } else if (err.response && err.response.data && err.response.data.message) {
+        triggerError(err.response.data.message)
       } else {
         triggerError('Số điện thoại hoặc mật khẩu không đúng.')
       }
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (!identifier.trim() || !password.trim()) {
+      triggerError('Vui lòng nhập đầy đủ tên đăng nhập hoặc số điện thoại và mật khẩu.')
+      return
+    }
+    await submitLogin(false)
   }
 
   return (
@@ -121,29 +140,56 @@ export default function LoginPage() {
             </div>
           )}
 
+          {deviceApprovalMessage && (
+            <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl mb-6" style={{ background: '#ecfdf5', border: '1px solid #a7f3d0' }}>
+              <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
+              <p className="text-sm font-medium text-emerald-700">{deviceApprovalMessage}</p>
+            </div>
+          )}
+
+          {deviceApprovalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+              <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-700">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Thiết bị mới</h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">Bạn đang đăng nhập bằng thiết bị mới. Bạn có đồng ý gửi yêu cầu xét duyệt đến quản trị viên không?</p>
+                  </div>
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={() => setDeviceApprovalOpen(false)} disabled={loading} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Đóng</button>
+                  <button type="button" onClick={() => submitLogin(true)} disabled={loading} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60">{loading ? 'Đang gửi...' : 'Đồng ý'}</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-            {/* Phone Number */}
+            {/* Username or phone number */}
             <div>
               <label
-                htmlFor="phoneNumber"
+                htmlFor="identifier"
                 className="block text-xs font-semibold uppercase tracking-widest mb-1.5"
                 style={{ color: '#0b1c30' }}
               >
-                Số điện thoại
+                Tên đăng nhập hoặc số điện thoại
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
                   <User size={16} />
                 </span>
                 <input
-                  id="phoneNumber"
+                id="identifier"
                   type="text"
-                  autoComplete="tel"
+                  autoComplete="username"
                   autoFocus
-                  placeholder="Nhập số điện thoại"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="Tên đăng nhập hoặc số điện thoại"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                   disabled={loading}
                   className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl outline-none transition-all duration-200 disabled:opacity-60"
                   style={{
@@ -169,6 +215,7 @@ export default function LoginPage() {
                 </label>
                 <button
                   type="button"
+                  onClick={() => navigate('/forgot-password')}
                   className="text-xs font-medium transition-colors duration-150"
                   style={{ color: '#1e40af' }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#00288e' }}

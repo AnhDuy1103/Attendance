@@ -36,4 +36,15 @@ export const settingsApi = {
 
     return response.data.data;
   },
+
+  reverseGeocode: async (latitude: number, longitude: number): Promise<PlaceDetails> => {
+    const response = await axiosClient.get<{ data: PlaceDetails }>(
+      "/settings/place-reverse",
+      {
+        params: { latitude, longitude },
+      }
+    );
+
+    return response.data.data;
+  },
 };

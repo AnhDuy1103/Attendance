@@ -1,9 +1,26 @@
 import axiosClient from './axiosClient';
 
 export type LoginRequest = {
-  phoneNumber: string;
+  identifier: string;
   password: string;
+  deviceToken: string;
+  deviceName?: string;
+  devicePlatform?: string;
+  deviceBrowser?: string;
+  requestDeviceApproval?: boolean;
 };
+
+export function getDeviceToken(): string {
+  const key = 'gps_attendance_device_token';
+  let token = localStorage.getItem(key);
+  if (!token) {
+    token = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(key, token);
+  }
+  return token;
+}
 
 export type LoginResponse = {
   token: string;
@@ -26,7 +43,16 @@ export type ApiResponse<T> = {
 export const authApi = {
   login: async (data: LoginRequest): Promise<LoginResponse> => {
     // API backend trả về ApiResponseDto<any> vì cấu trúc là { token, userInfo: {...} }
-    const response = await axiosClient.post<ApiResponse<any>>("/auth/login", data);
+    const response = await axiosClient.post<ApiResponse<any>>("/auth/login", {
+      ...data,
+      identifier: data.identifier.trim(),
+    });
+    if (response.status === 202) {
+      const apiError: any = new Error(response.data?.message || 'Yêu cầu thiết bị chưa được xử lý.');
+      apiError.code = response.data?.errors?.[0];
+      apiError.apiMessage = response.data?.message;
+      throw apiError;
+    }
     const result = response.data.data;
     
     return {
@@ -38,5 +64,17 @@ export const authApi = {
       employeeId: result.userInfo?.employeeId,
       employeeCode: result.userInfo?.employeeCode
     };
+  },
+  requestPasswordOtp: async (email: string): Promise<string> => {
+    const response = await axiosClient.post<ApiResponse<null>>('/auth/forgot-password', { email });
+    return response.data.message;
+  },
+  verifyPasswordOtp: async (email: string, otp: string): Promise<string> => {
+    const response = await axiosClient.post<ApiResponse<{ resetToken: string }>>('/auth/verify-otp', { email, otp });
+    return response.data.data.resetToken;
+  },
+  resetPassword: async (resetToken: string, newPassword: string): Promise<string> => {
+    const response = await axiosClient.post<ApiResponse<null>>('/auth/reset-password', { resetToken, newPassword });
+    return response.data.message;
   },
 };

@@ -45,18 +45,22 @@ public class AuthController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ApiResponseDto<object>.Fail("Dữ liệu không hợp lệ"));
 
-        _logger.LogInformation("Yêu cầu đăng nhập từ số điện thoại: {PhoneNumber}", request.PhoneNumber);
+        _logger.LogInformation("Yêu cầu đăng nhập từ định danh: {Identifier}", request.Identifier);
 
         var result = await _authService.LoginAsync(request);
 
-        if (result == null)
+        if (!result.IsSuccess)
         {
-            _logger.LogWarning("Đăng nhập thất bại cho số điện thoại: {PhoneNumber}", request.PhoneNumber);
-            return Unauthorized(ApiResponseDto<object>.Fail("Sai số điện thoại hoặc mật khẩu"));
+            _logger.LogWarning("Đăng nhập thất bại cho định danh: {Identifier}", request.Identifier);
+            if (result.Code is "DEVICE_APPROVAL_CONFIRMATION_REQUIRED" or "DEVICE_APPROVAL_SENT")
+                return StatusCode(StatusCodes.Status202Accepted,
+                    ApiResponseDto<object>.Fail(result.Message, new List<string> { result.Code }));
+            return Unauthorized(ApiResponseDto<object>.Fail(result.Message,
+                result.Code == null ? null : new List<string> { result.Code }));
         }
 
-        _logger.LogInformation("Đăng nhập thành công: {PhoneNumber}", request.PhoneNumber);
-        return Ok(ApiResponseDto<LoginResponseDto>.Ok(result, "Đăng nhập thành công"));
+        _logger.LogInformation("Đăng nhập thành công: {Identifier}", request.Identifier);
+        return Ok(ApiResponseDto<LoginResponseDto>.Ok(result.Response!, "Đăng nhập thành công"));
     }
 
     /// <summary>

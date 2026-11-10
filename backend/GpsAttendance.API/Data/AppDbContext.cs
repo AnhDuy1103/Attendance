@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<Attendance> Attendances { get; set; }
     public DbSet<Location> Locations { get; set; }
     public DbSet<WorkingHours> WorkingHours { get; set; }
+    public DbSet<DeviceChangeRequest> DeviceChangeRequests { get; set; }
 
     /// <summary>
     /// Cấu hình quan hệ giữa các bảng và các ràng buộc dữ liệu bằng Fluent API.
@@ -34,12 +35,33 @@ public class AppDbContext : DbContext
 
             // PhoneNumber phải duy nhất
             entity.HasIndex(u => u.PhoneNumber).IsUnique();
+            entity.HasIndex(u => u.Username).IsUnique().HasFilter("[Username] IS NOT NULL");
 
             entity.Property(u => u.PhoneNumber).HasMaxLength(20).IsRequired();
+            entity.Property(u => u.Username).HasMaxLength(50);
             entity.Property(u => u.PasswordHash).IsRequired();
             entity.Property(u => u.Role).HasMaxLength(20).HasDefaultValue("Employee");
             entity.Property(u => u.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
             entity.Property(u => u.IsActive).HasDefaultValue(true);
+            entity.Property(u => u.DeviceTokenHash).HasMaxLength(255);
+            entity.Property(u => u.DeviceName).HasMaxLength(100);
+            entity.Property(u => u.DevicePlatform).HasMaxLength(50);
+            entity.Property(u => u.DeviceBrowser).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<DeviceChangeRequest>(entity =>
+        {
+            entity.ToTable("DeviceChangeRequests");
+            entity.HasKey(r => r.RequestId);
+            entity.Property(r => r.Status).HasMaxLength(20).HasDefaultValue("Pending");
+            entity.Property(r => r.DeviceTokenHash).HasMaxLength(255).IsRequired();
+            entity.Property(r => r.DeviceName).HasMaxLength(100);
+            entity.Property(r => r.DevicePlatform).HasMaxLength(50);
+            entity.Property(r => r.DeviceBrowser).HasMaxLength(100);
+            entity.Property(r => r.IpAddress).HasMaxLength(50);
+            entity.Property(r => r.Note).HasMaxLength(500);
+            entity.HasOne(r => r.User).WithMany().HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(r => new { r.UserId, r.Status });
         });
 
         // ── Cấu hình bảng Employee ────────────────────────────────────────────
@@ -148,6 +170,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<User>().HasData(new User
         {
             Id = 1,
+            Username = "nhansu1",
             PhoneNumber = "0123456789",
             // BCrypt hash của "Admin@123" – đã xác minh Verify = true
             PasswordHash = "$2a$11$FyJOZhFASY.t4rIa/Kc8e.XwdLlx18yHc7Ysy/TPOCP8RBKuLH5He",

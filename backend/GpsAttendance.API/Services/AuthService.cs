@@ -1,9 +1,12 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
+using GpsAttendance.API.Data;
 using GpsAttendance.API.DTOs.Auth;
 using GpsAttendance.API.Models;
 using GpsAttendance.API.Repositories.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 namespace GpsAttendance.API.Services;
@@ -15,34 +18,81 @@ public class AuthService
 {
     private readonly IUserRepository _userRepository;
     private readonly IConfiguration _configuration;
+    private readonly AppDbContext _db;
 
-    public AuthService(IUserRepository userRepository, IConfiguration configuration)
+    public AuthService(IUserRepository userRepository, IConfiguration configuration, AppDbContext db)
     {
         _userRepository = userRepository;
         _configuration = configuration;
+        _db = db;
     }
 
     /// <summary>
     /// Xác thực đăng nhập và trả về JWT token nếu hợp lệ.
     /// </summary>
-    public async Task<LoginResponseDto?> LoginAsync(LoginRequestDto request)
+    public async Task<LoginAttemptResult> LoginAsync(LoginRequestDto request)
     {
-        // 1. Tìm user theo PhoneNumber
-        var user = await _userRepository.GetByIdWithEmployeeAsync(
-            (await _userRepository.GetByPhoneNumberAsync(request.PhoneNumber))?.Id ?? 0);
+        // 1. Tìm user theo username hoặc số điện thoại
+        var identifier = request.Identifier.Trim();
+        var user = await _db.Users.Include(u => u.Employee)
+            .FirstOrDefaultAsync(u => u.IsActive && (u.PhoneNumber == identifier || u.Username == identifier));
 
         if (user == null || !user.IsActive)
-            return null;
+            return LoginAttemptResult.Failed("Sai số điện thoại hoặc mật khẩu");
 
         // 2. Kiểm tra password bằng BCrypt
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-            return null;
+            return LoginAttemptResult.Failed("Sai số điện thoại hoặc mật khẩu");
+
+        if (user.Role != "Admin" && string.IsNullOrWhiteSpace(request.DeviceToken))
+            return LoginAttemptResult.Failed("Thiết bị đăng nhập không hợp lệ", "DEVICE_REQUIRED");
+
+        if (user.Role != "Admin")
+        {
+            var deviceHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request.DeviceToken!.Trim())));
+            if (string.IsNullOrWhiteSpace(user.DeviceTokenHash))
+            {
+                user.DeviceTokenHash = deviceHash;
+                user.DeviceName = request.DeviceName?.Trim();
+                user.DevicePlatform = request.DevicePlatform?.Trim();
+                user.DeviceBrowser = request.DeviceBrowser?.Trim();
+                user.DeviceLastLoginAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+            }
+            else if (!string.Equals(user.DeviceTokenHash, deviceHash, StringComparison.OrdinalIgnoreCase))
+            {
+                var pending = await _db.DeviceChangeRequests.AnyAsync(r => r.UserId == user.Id && r.DeviceTokenHash == deviceHash && r.Status == "Pending");
+                if (!request.RequestDeviceApproval)
+                    return LoginAttemptResult.Failed(
+                        "Bạn đang đăng nhập bằng thiết bị mới. Bạn có đồng ý gửi yêu cầu xét duyệt đến quản trị viên không?",
+                        "DEVICE_APPROVAL_CONFIRMATION_REQUIRED");
+
+                if (!pending)
+                {
+                    _db.DeviceChangeRequests.Add(new DeviceChangeRequest
+                    {
+                        UserId = user.Id, DeviceTokenHash = deviceHash,
+                        DeviceName = request.DeviceName?.Trim(), DevicePlatform = request.DevicePlatform?.Trim(),
+                        DeviceBrowser = request.DeviceBrowser?.Trim(), Status = "Pending", RequestedAt = DateTime.UtcNow
+                    });
+                    await _db.SaveChangesAsync();
+                }
+                return LoginAttemptResult.Failed(
+                    "Yêu cầu xét duyệt thiết bị đã được gửi thành công.",
+                    "DEVICE_APPROVAL_SENT");
+            }
+            else
+            {
+                user.DeviceLastLoginAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+            }
+        }
 
         // 3. Tạo JWT Token
         var (token, expiresAt) = GenerateJwtToken(user);
 
         // 4. Xây dựng response
-        return new LoginResponseDto
+        return LoginAttemptResult.Success(new LoginResponseDto
         {
             Token = token,
             ExpiresAt = expiresAt,
@@ -56,7 +106,7 @@ public class AuthService
                 FullName = user.Employee?.FullName,
                 Email = user.Employee?.Email
             }
-        };
+        });
     }
 
     /// <summary>
@@ -106,3 +156,11 @@ public class AuthService
     public static bool VerifyPassword(string password, string hash)
         => BCrypt.Net.BCrypt.Verify(password, hash);
 }
+
+public sealed record LoginAttemptResult(LoginResponseDto? Response, string Message, string? Code)
+{
+    public bool IsSuccess => Response != null;
+    public static LoginAttemptResult Success(LoginResponseDto response) => new(response, "Đăng nhập thành công", null);
+    public static LoginAttemptResult Failed(string message, string? code = null) => new(null, message, code);
+}
+
