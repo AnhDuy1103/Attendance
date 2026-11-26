@@ -82,6 +82,7 @@ export default function EmployeeManagementPage() {
   const [employees, setEmployees] = useState<EmployeeResponse[]>([])
   const [filteredEmployees, setFilteredEmployees] = useState<EmployeeResponse[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [departmentFilter, setDepartmentFilter] = useState("all")
   const [errorMessage, setErrorMessage] = useState("")
   const [toastMessage, setToastMessage] = useState("")
 
@@ -166,14 +167,10 @@ export default function EmployeeManagementPage() {
   // ─── Search Filter ───
   useEffect(() => {
     const keyword = searchTerm.trim().toLowerCase()
-
-    if (!keyword) {
-      setFilteredEmployees(employees)
-      setCurrentPage(1)
-      return
-    }
-
     const result = employees.filter((item) => {
+      const matchesDepartment = departmentFilter === "all" || item.department === departmentFilter
+      if (!matchesDepartment) return false
+      if (!keyword) return true
       return (
         item.employeeCode?.toLowerCase().includes(keyword) ||
         item.fullName?.toLowerCase().includes(keyword) ||
@@ -186,7 +183,13 @@ export default function EmployeeManagementPage() {
 
     setFilteredEmployees(result)
     setCurrentPage(1)
-  }, [searchTerm, employees])
+  }, [searchTerm, departmentFilter, employees])
+
+  const departmentOptions = useMemo(() => {
+    return Array.from(new Set(employees.map((item) => item.department).filter(Boolean))).sort((a, b) =>
+      a.localeCompare(b, 'vi')
+    )
+  }, [employees])
 
   // ─── Helpers ───
   const getInitials = (name: string) => {
@@ -1059,20 +1062,21 @@ export default function EmployeeManagementPage() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => alert('Chức năng bộ lọc sẽ được phát triển sau.')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 cursor-pointer"
-              style={{ border: '1.5px solid #c4c5d5', background: '#fff', color: '#444653' }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = '#f8f9ff'
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = '#fff'
-              }}
-            >
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ border: '1.5px solid #c4c5d5', background: '#fff' }}>
               <Filter size={15} />
-              Bộ lọc
-            </button>
+              <select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+                aria-label="Lọc theo phòng ban"
+                className="bg-transparent text-sm font-medium outline-none cursor-pointer"
+                style={{ color: '#444653' }}
+              >
+                <option value="all">Tất cả phòng ban</option>
+                {departmentOptions.map((department) => (
+                  <option key={department} value={department}>{department}</option>
+                ))}
+              </select>
+            </div>
 
             <button
               onClick={handleOpenAddModal}
