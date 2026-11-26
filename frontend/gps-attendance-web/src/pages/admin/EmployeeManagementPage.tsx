@@ -142,8 +142,14 @@ export default function EmployeeManagementPage() {
       setErrorMessage("")
       const response = await employeeApi.getAll()
       const list = response.data?.data?.items || []
-      setEmployees(list)
-      setFilteredEmployees(list)
+      const sortedList = [...list].sort((a, b) =>
+        (a.employeeCode || '').localeCompare(b.employeeCode || '', undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        })
+      )
+      setEmployees(sortedList)
+      setFilteredEmployees(sortedList)
     } catch (error: any) {
       console.error(error)
       const message =
