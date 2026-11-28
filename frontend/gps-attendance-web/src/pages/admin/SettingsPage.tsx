@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
-  CheckCircle,
   Clock,
   Crosshair,
   Loader2,
@@ -13,6 +12,7 @@ import { workingHoursApi } from "../../api/workingHoursApi";
 import { locationApi } from "../../api/locationApi";
 import { settingsApi, PlaceSuggestion } from "../../api/settingsApi";
 import LocationMapPicker from "../../components/admin/settings/LocationMapPicker";
+import NotificationToast from "../../components/common/NotificationToast";
 
 type LocationForm = {
   locationId: number | null;
@@ -722,14 +722,7 @@ export default function SettingsPage() {
         </section>
       </div>
 
-      {toastMessage && (
-        <div className="fixed right-6 top-20 z-[9999] flex items-center gap-2 rounded-full border border-green-200 bg-white px-4 py-2.5 shadow-lg">
-          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-500 text-white">
-            <CheckCircle size={14} strokeWidth={3} />
-          </div>
-          <p className="text-sm font-bold text-green-600">{toastMessage}</p>
-        </div>
-      )}
+      <NotificationToast open={!!toastMessage} type="success" title="Cập nhật thành công" message={toastMessage} onClose={() => setToastMessage('')} />
     </div>
   );
 }

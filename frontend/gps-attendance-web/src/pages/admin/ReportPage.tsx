@@ -8,11 +8,11 @@ import {
   AlertCircle,
   UserRoundX,
   Building2,
-  Check,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { reportApi, ReportAttendanceRecord } from "../../api/reportApi";
 import { attendanceApi } from "../../api/attendanceApi";
+import NotificationToast from "../../components/common/NotificationToast";
 
 // ─── Types ────────────────────────────────────────────────────
 type SummaryCard = {
@@ -707,19 +707,7 @@ export default function ReportPage() {
       )}
 
       {/* ── Toast Message ── */}
-      {toastMessage && (
-        <div
-          className="fixed top-20 right-6 z-[9999] flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg border bg-white animate-fade-in-up"
-          style={{ borderColor: "#bbf7d0" }}
-        >
-          <div className="w-5 h-5 rounded-full flex items-center justify-center bg-green-500 text-white shrink-0">
-            <Check size={12} strokeWidth={3} />
-          </div>
-          <p className="text-sm font-bold" style={{ color: "#16a34a" }}>
-            {toastMessage}
-          </p>
-        </div>
-      )}
+      <NotificationToast open={!!toastMessage} type="success" title="Thao tác thành công" message={toastMessage} onClose={() => setToastMessage('')} />
     </div>
   );
 }

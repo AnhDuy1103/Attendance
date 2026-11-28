@@ -16,6 +16,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { accountApi } from '../../api/accountApi'
+import NotificationToast from '../../components/common/NotificationToast'
 
 // ─── Helpers ──────────────────────────────────────────────────
 const getInitials = (fullName?: string): string => {
@@ -475,15 +476,7 @@ export default function AdminAccountPage() {
   return (
     <div className="page-container animate-fade-in" style={{ maxWidth: '100%' }}>
       {/* Toast Notification */}
-      {toastMessage && (
-        <div
-          className="fixed top-20 right-6 z-[9999] bg-white border border-green-200 shadow-lg rounded-xl px-5 py-3 flex items-center gap-3 animate-fade-in"
-          style={{ minWidth: 240 }}
-        >
-          <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-          <span className="text-sm font-semibold text-gray-700">{toastMessage}</span>
-        </div>
-      )}
+      <NotificationToast open={!!toastMessage} type="success" title="Thao tác thành công" message={toastMessage} onClose={() => setToastMessage('')} />
 
       {/* Password Modal (Portal) */}
       {renderPasswordModal()}

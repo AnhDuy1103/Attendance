@@ -7,6 +7,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react'
+import NotificationToast from '../../common/NotificationToast'
 
 // ─── Types ────────────────────────────────────────────────────
 export type ChangePasswordForm = {
@@ -30,12 +31,13 @@ interface Props {
 export default function ChangePasswordModal({ isOpen, onClose }: Props) {
   const [passwordForm, setPasswordForm] = useState<ChangePasswordForm>(defaultPasswordForm)
   const [errors, setErrors] = useState<Partial<Record<keyof ChangePasswordForm, string>>>({})
+  const [successMessage, setSuccessMessage] = useState('')
   
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  if (!isOpen) return null
+  if (!isOpen && !successMessage) return null
 
   const handleChange = (field: keyof ChangePasswordForm, value: string) => {
     setPasswordForm((prev) => ({ ...prev, [field]: value }))
@@ -92,12 +94,14 @@ export default function ChangePasswordModal({ isOpen, onClose }: Props) {
     }
 
     console.log('Cập nhật mật khẩu:', passwordForm)
-    alert('Cập nhật mật khẩu thành công')
+    setSuccessMessage('Mật khẩu của bạn đã được cập nhật thành công.')
     handleClose()
   }
 
   return (
-    <div
+    <>
+      <NotificationToast open={!!successMessage} type="success" title="Cập nhật thành công" message={successMessage} onClose={() => setSuccessMessage('')} />
+      {isOpen && <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
       style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
       onClick={handleClose}
@@ -260,6 +264,7 @@ export default function ChangePasswordModal({ isOpen, onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+      </div>}
+    </>
   )
 }

@@ -4,13 +4,13 @@ import {
   Info,
   LogIn,
   LogOut,
-  Check,
   Clock,
   History,
   AlertCircle
 } from 'lucide-react'
 import { attendanceApi, MyHistoryResponse } from '../../api/attendanceApi'
 import { STORAGE_KEYS } from '../../utils/constants'
+import NotificationToast from '../../components/common/NotificationToast'
 
 // ─── Types ────────────────────────────────────────────────────
 type AttendanceStep = 'not_checked_in' | 'checked_in' | 'checked_out'
@@ -498,22 +498,7 @@ export default function CheckAttendancePage() {
         </div>
 
         {/* ── Toast Message ── */}
-        {!!toastMessage && (
-          <div
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-lg border animate-fade-in-up"
-            style={{ 
-              background: '#ffffff', 
-              borderColor: errorMessage === toastMessage ? '#fecaca' : '#bbf7d0' 
-            }}
-          >
-            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white shrink-0 ${errorMessage === toastMessage ? 'bg-red-500' : 'bg-green-500'}`}>
-              {errorMessage === toastMessage ? <AlertCircle size={12} strokeWidth={3} /> : <Check size={12} strokeWidth={3} />}
-            </div>
-            <p className="text-sm font-bold" style={{ color: errorMessage === toastMessage ? '#dc2626' : '#16a34a' }}>
-              {toastMessage}
-            </p>
-          </div>
-        )}
+        <NotificationToast open={!!toastMessage} type={errorMessage === toastMessage ? 'error' : 'success'} title={errorMessage === toastMessage ? 'Không thể thực hiện' : 'Thao tác thành công'} message={toastMessage} onClose={() => { setToastMessage(''); if (errorMessage === toastMessage) setErrorMessage('') }} />
 
     </div>
   )
